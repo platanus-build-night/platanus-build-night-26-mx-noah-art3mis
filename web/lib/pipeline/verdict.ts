@@ -1,20 +1,35 @@
-import type { ClaimItem, EvidenceItem, Verdict } from "../graph-types";
+import type { ClaimItem, EvidenceItem, Reliability, Verdict } from "../graph-types";
 
-// Deterministic verdict aggregation — STATED, not learned (PLAN.md). The pipeline's
-// job is to gather evidence transparently; the mapping from evidence to verdict is a
-// fixed rule the user can inspect, not a black-box judgement.
+// Deterministic verdict aggregation — STATED, not learned (PLAN.md / CONTEXT.md). The
+// mapping from evidence to verdict is a fixed rule the user can inspect, not a black box.
+//
+// Two orthogonal, stated gates decide whether a piece of evidence can MOVE a verdict:
+//   1. stance legibility — the classifier read the stance clearly enough (stanceConfidence).
+//   2. evidence quality  — VERITRACE's core principle (CONTEXT.md) is that a verdict's
+//      uncertainty lives in SOURCE RELIABILITY, not a bare confidence %. So a low-reliability
+//      source (blog / social aggregator / anonymous) can only *contextualize* — it cannot
+//      establish or flip a verdict on its own. Only high/medium reliability decides.
+// Evidence failing either gate leaves the claim at Not-Enough-Evidence.
 
-// Evidence below this stance-confidence is treated as too weak to move a verdict.
-const MIN_CONFIDENCE = 0.5;
+// Minimum stance-confidence for the classifier's stance reading to count at all.
+const MIN_STANCE_CONFIDENCE = 0.5;
+
+// Reliability tiers allowed to *establish* a verdict; "low" can only contextualize.
+const DECIDING_RELIABILITY: ReadonlySet<Reliability> = new Set<Reliability>(["high", "medium"]);
+
+/** Whether an evidence item carries enough quality + clarity to move a verdict. */
+export function isDeciding(e: EvidenceItem): boolean {
+  return DECIDING_RELIABILITY.has(e.reliability) && (e.stanceConfidence ?? 0) >= MIN_STANCE_CONFIDENCE;
+}
 
 /** Aggregate a single claim's evidence into its advisory Verdict. */
 export function claimVerdict(claim: ClaimItem, evidence: EvidenceItem[]): Verdict {
   // Claims a text+web build can't check (media provenance / synthetic) → NEI by design.
   if (!claim.checkable) return "nei";
 
-  const usable = evidence.filter((e) => (e.stanceConfidence ?? 0) >= MIN_CONFIDENCE);
-  const supports = usable.some((e) => e.stance === "supports");
-  const refutes = usable.some((e) => e.stance === "refutes");
+  const deciding = evidence.filter(isDeciding);
+  const supports = deciding.some((e) => e.stance === "supports");
+  const refutes = deciding.some((e) => e.stance === "refutes");
 
   if (supports && refutes) return "conflicting";
   if (refutes) return "refuted";

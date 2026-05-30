@@ -48,6 +48,8 @@ Demo legibility caps: ~3 sub-claims/claim, ~2 questions/sub-claim, 1–2 evidenc
 
 The pipeline reaches Verdicts from **Primary evidence it gathers itself**, never from a third-party fact-check. Mechanically enforced: every Exa call sets `excludeDomains: [politifact.com, afp.com, factchequeado.com, fullfact.org, snopes.com, …]`. Fact-checks stay in `demo-corpus/SOURCES.md` as the **Answer key** (grading only), never fed in.
 
+**Honest scope (don't over-claim on stage):** `excludeDomains` is a *best-effort denylist*, not a structural guarantee — it can't exclude the fact-check *sections* of general newsrooms (Reuters / AP / BBC Verify) or unlisted verifiers (Maldita, Newtral, EFE Verifica). So scope the on-stage line to *this* graph — "no fact-checker in these sources," which is verifiably true for the El Mencho evidence (BBC, Proceso, Cobertura360, OSAC) — rather than implying one can never slip in.
+
 This build (text-in + web-search, no pixels, no reverse-image/geo/detector) can honestly check two sub-claim types de novo: **event/existence** and **official-denial**. It **cannot** check **media-provenance / synthetic-media / origin-trace** sub-claims — those correctly resolve to **Not-Enough-Evidence** (uncertainty-first, a feature). Pixel/provenance handling is a deferred stretch (image/video ingest + a hosted AI-media detector).
 
 **Demo hero = Story 2 (El Mencho / Guadalajara airport):** "El Mencho died" → Supported (news wire); "CJNG seized the airport, US hostages" → Refuted (official authority/Embassy denial) — both de novo, zero fact-checkers in the evidence. On-stage flex: "notice, no fact-checkers in these sources — it re-derived the verdict from primaries."
@@ -113,16 +115,7 @@ Each event is appended to the React Flow graph on arrival with an enter-animatio
 
 **Stretch (only after P5 is solid):** article-URL ingest (paste a URL → extract the central claim); recompute-on-distrust (mark a source low-trust → re-aggregate); slop/AI-text signal on the source article (hosted detector, framed as triage not verdict).
 
-## The 2-minute demo script
 
-| Time      | Beat                                                                                                                                                              |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0:00–0:15 | **Hook.** "Fact-checkers don't trust AI verdicts — and they're right not to: ~80% of LLM fact-check explanations contain hallucinations. VERITRACE never asks you to trust it. It shows its work." |
-| 0:15–0:20 | Click the **El Mencho / Guadalajara airport** chip (viral panic claim: cartel seized the airport, US hostages) → hit **Check**.                                  |
-| 0:20–1:05 | **Watch it think.** Narrate as it streams: "It breaks the claim into checkable pieces — *did El Mencho die? was the airport seized?* — for each it asks the exact questions a fact-checker would, and goes and finds primary sources, live." Cards fly in. |
-| 1:05–1:40 | **The twist + the flex.** "Death: Supported, by the news wire. The airport seizure: **Refuted** — and not because a fact-checker said so. Look at the sources: the official authority's own denial. *There isn't a single fact-checker in this graph — it re-derived the verdict from primary sources.*" Click the denial evidence card → real primary source opens. |
-| 1:40–1:55 | **The thesis.** "The verdict is advisory. The journalist makes the final call — and now they actually can, because every step traces to a primary source they can open. That's what no fact-checking tool gives them." |
-| 1:55–2:00 | **Close.** Tagline + "One spine, three atoms of suspicion — claims today; AI-media and research integrity next." (If a provenance claim came up: "and when it *can't* see the video, it says Not-Enough-Evidence instead of guessing — that honesty is the point.") |
 
 ## Top risks → mitigations
 

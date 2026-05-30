@@ -101,29 +101,78 @@ const REFERENCES: Ref[] = [
     title: "FacTool · Loki / OpenFactVerification · FActScore",
     detail:
       "The open document-first verification lineage (GAIR-NLP; Libr-AI; FActScore seeded SAFE’s atomic decomposition). Confirms paste-a-document → decompose → web-verify as a validated pattern, not an invention.",
+    href: "https://github.com/GAIR-NLP/factool",
+    hrefLabel: "github.com/GAIR-NLP/factool",
   },
   {
     key: "kim",
-    title: "Hallucinated explanations — Kim et al.",
+    title: "Faithful explanations for fact-checking — Kim et al., 2024",
     detail:
-      "Roughly 80% of zero-shot LLM fact-check explanations contain hallucinated content. The core reason VERITRACE shows an evidence trail instead of asking you to trust a generated justification.",
+      "Zero-shot LLM fact-check explanations are frequently unfaithful — plausible but not reflecting the actual reasoning. The core reason VERITRACE shows an evidence trail instead of asking you to trust a generated justification.",
+    href: "https://arxiv.org/abs/2402.07401",
+    hrefLabel: "arXiv:2402.07401",
   },
   {
     key: "jacovi",
     title: "Faithful vs plausible — Jacovi & Goldberg, 2020",
     detail:
       "An explanation can be plausible (convincing) yet unfaithful (not reflecting the actual reasoning) — dangerous for trust. VERITRACE favors faithful-by-construction process over post-hoc rationalization.",
+    href: "https://aclanthology.org/2020.acl-main.386/",
+    hrefLabel: "ACL 2020",
   },
   {
     key: "atanasova",
     title: "Generating fact-checking explanations — Atanasova et al., 2020",
     detail: "Joint veracity prediction and explanation generation; foundational explainable-FC work (CopeNLU).",
+    href: "https://aclanthology.org/2020.acl-main.656/",
+    hrefLabel: "ACL 2020",
   },
   {
     key: "clue",
     title: "CLUE — Sun et al., 2025 (CopeNLU)",
     detail:
       "Reframes uncertainty as something to explain — separating “conflicting” from “insufficient” evidence — which motivates VERITRACE’s reliability-based, non-binary uncertainty.",
+    href: "https://arxiv.org/abs/2505.17855",
+    hrefLabel: "arXiv:2505.17855",
+  },
+];
+
+interface Inspiration {
+  name: string;
+  href?: string;
+  body: string;
+}
+
+const INSPIRATIONS: { group: string; blurb: string; items: Inspiration[] }[] = [
+  {
+    group: "AI-text detection",
+    blurb:
+      "Tools that score whether prose was machine-generated. VERITRACE borrows their adversarial honesty — surface the signal, let the human judge — but checks claims against evidence rather than scoring style.",
+    items: [
+      { name: "GPTZero", href: "https://gptzero.me/", body: "Sentence-level AI-text detection for educators and publishers." },
+      { name: "Pangram", href: "https://www.pangram.com/", body: "High-precision AI-content detection with low false-positive rates." },
+      { name: "Originality.ai", href: "https://originality.ai/", body: "AI-detection plus plagiarism and fact-checking for content teams." },
+      { name: "SlopSpotter", body: "Community tooling for flagging low-quality, AI-generated “slop” on the web." },
+    ],
+  },
+  {
+    group: "Research & scientific integrity",
+    blurb:
+      "Systems that police the scholarly and academic record. They share VERITRACE’s process-first stance: show the trail of why something is suspect, don’t just emit a score.",
+    items: [
+      {
+        name: "Sleuth AI",
+        href: "https://research-signals.com/2025/07/21/signals-launches-sleuth-ai/",
+        body: "Signals’ agent for surfacing integrity problems in published research.",
+      },
+      {
+        name: "Problematic Paper Screener",
+        href: "https://dbrech.irit.fr/pls/apex/f?p=9999:1",
+        body: "Scans the literature for tortured phrases and other fabrication tells.",
+      },
+      { name: "Turnitin", href: "https://www.turnitin.co.uk/", body: "Originality and AI-writing checks across student and academic work." },
+      { name: "COSIG", href: "https://cosig.net/", body: "Coalition for scientific-integrity tooling and shared detection resources." },
+    ],
   },
 ];
 
@@ -186,14 +235,15 @@ export default function MethodologyPage() {
           style={{ borderColor: "var(--line-2)", background: "var(--panel)" }}
         >
           <div className="flex items-baseline gap-4">
-            <span className="font-display text-[52px] font-semibold leading-none" style={{ color: "var(--refutes)" }}>
-              ~80%
+            <span className="font-display text-[40px] font-semibold italic leading-none" style={{ color: "var(--refutes)" }}>
+              Unfaithful
             </span>
             <p className="text-[14px] leading-[1.6] text-[var(--ink-2)]">
-              of zero-shot LLM fact-check explanations contain hallucinated content
-              <span className="text-[var(--ink-3)]"> (Kim et al.)</span>. VERITRACE never asks you
-              to trust a generated justification — it traces every step to a primary source you can
-              open.
+              Zero-shot LLM fact-check explanations are routinely <em>unfaithful</em> — convincing
+              but disconnected from the actual reasoning
+              <span className="text-[var(--ink-3)]"> (Kim et al., 2024)</span>. VERITRACE never asks
+              you to trust a generated justification — it traces every step to a primary source you
+              can open.
             </p>
           </div>
         </div>
@@ -283,6 +333,53 @@ export default function MethodologyPage() {
           </p>
         </section>
 
+        {/* Inspirations */}
+        <section className="mt-14">
+          <SectionTitle>Inspirations &amp; landscape</SectionTitle>
+          <p className="mt-4 text-[14px] leading-[1.7] text-[var(--ink-2)]">
+            VERITRACE sits next to a wider field of tools fighting fabrication — from AI-text
+            detectors to research-integrity screeners. These shaped how we think about surfacing
+            signal without forcing a verdict.
+          </p>
+          <div className="mt-6 flex flex-col gap-8">
+            {INSPIRATIONS.map((g) => (
+              <div key={g.group}>
+                <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--ink-3)]">
+                  {g.group}
+                </h3>
+                <p className="mt-2 text-[13px] leading-[1.6] text-[var(--ink-2)]">{g.blurb}</p>
+                <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {g.items.map((it) => (
+                    <li
+                      key={it.name}
+                      className="rounded-lg border border-[var(--line)] bg-[var(--panel)] px-4 py-3"
+                    >
+                      {it.href ? (
+                        <a
+                          href={it.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-display text-[14px] font-semibold transition-colors hover:underline"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          {it.name} ↗
+                        </a>
+                      ) : (
+                        <span className="font-display text-[14px] font-semibold text-[var(--ink-1)]">
+                          {it.name}
+                        </span>
+                      )}
+                      <p className="mt-1.5 text-[12.5px] leading-[1.55] text-[var(--ink-2)]">
+                        {it.body}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* References */}
         <section className="mt-14">
           <SectionTitle>References</SectionTitle>
@@ -309,7 +406,7 @@ export default function MethodologyPage() {
 
         <footer className="mt-14 border-t border-[var(--line)] pt-6">
           <p className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-[var(--ink-3)]">
-            VERITRACE · evidence graph · de novo · the verdict is advisory — you make the call
+            VERITRACE · evidence graph · de novo · the verdict is advisory
           </p>
           <Link
             href="/"
