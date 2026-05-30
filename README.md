@@ -12,7 +12,7 @@ Built by Gustavo Araujo Costa ([@noah-art3mis](https://github.com/noah-art3mis))
 
 ## What makes it different
 
-- **Process-based explainability.** The explanation *is* the evidence trail, not a paragraph the model invents after the fact. Zero-shot LLM fact-check rationales are routinely unfaithful — convincing but disconnected from the real reasoning — so VERITRACE never asks you to trust a verdict you can't trace. Interviews with professional fact-checkers found they want exactly this: transparency and replicability into *how* a system reached its conclusion, not just a label ([Warren, Shklovski & Augenstein, 2025](https://doi.org/10.1145/3706598.3713277)).
+- **Process-based explainability.** The explanation *is* the evidence trail, not a paragraph the model invents after the fact. Zero-shot LLM fact-check rationales are routinely unfaithful — convincing but disconnected from the real reasoning — so VERITRACE never asks you to trust a verdict you can't trace. Interviews with professional fact-checkers found they want exactly this: transparency and replicability into *how* a system reached its conclusion, not just a label ([Warren, G., Shklovski, I., & Augenstein, I., Show Me the Work: Fact-Checkers' Requirements for Explainable Automated Fact-Checking. 2025](https://doi.org/10.1145/3706598.3713277)).
 - **Nuanced verdicts.** AVeriTeC's 4-way labels — **Supported / Refuted / Conflicting / Not-Enough-Evidence** — never bare true/false. When it can't verify a claim it returns Not-Enough-Evidence instead of guessing; that honesty is the point.
 - **Human-in-the-loop.** The model does the analysis and makes it granularly observable; the fact-checker exercises final judgment. Accountability stays human.
 
@@ -33,8 +33,4 @@ Each card flies into the graph the moment its stage completes; a claim's verdict
 
 ## Methodology
 
-The full pipeline, the de-novo retrieval honesty bar, the AVeriTeC verdict taxonomy, what this build can and can't check, and the complete research grounding live on the in-app [**Methodology & References** page](https://veritrace-chi.vercel.app/methodology).
-
-## References
-
-- Warren, G., Shklovski, I., & Augenstein, I. (2025). Show Me the Work: Fact-Checkers' Requirements for Explainable Automated Fact-Checking. *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems*, 1–21. https://doi.org/10.1145/3706598.3713277
+The full pipeline, the AVeriTeC verdict taxonomy, what this build can and can't check, and the complete research grounding live on the in-app [**Methodology & References** page](https://veritrace-chi.vercel.app/methodology).

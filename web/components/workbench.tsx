@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import FactGraphCanvas from "./fact-graph";
+import RunReport from "./run-report";
 import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel";
 import { MODELS, supportsTemperature } from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
@@ -56,6 +57,13 @@ export default function Workbench() {
   const [runId, setRunId] = useState(0);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
+  // Post-run brief: the left slide-in panel with verdict + ratio + AI summary. The narrative
+  // is fetched once per finished run (tracked by summarizedRunIdRef so the effect fires once).
+  const [reportOpen, setReportOpen] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const summarizedRunIdRef = useRef(0);
   // Lets the manual "Cached" button interrupt an in-flight live run (see runCached).
   const abortRef = useRef<AbortController | null>(null);
 
@@ -69,6 +77,59 @@ export default function Workbench() {
       /* storage unavailable (private mode / quota) — settings just won't persist */
     }
   }, [settings]);
+
+  // The per-run config sent to both /api/check and /api/summary (model + BYO keys).
+  function runConfig() {
+    return {
+      model: settings.model,
+      temperature: settings.temperature,
+      thinking: settings.thinking,
+      maxClaims: settings.maxClaims,
+      anthropicKey: settings.anthropicKey || undefined,
+      exaKey: settings.exaKey || undefined,
+    };
+  }
+
+  // Reset the brief when a new run starts so a stale summary never shows for fresh graph.
+  function resetReport() {
+    setReportOpen(false);
+    setSummary(null);
+    setSummaryError(null);
+    setSummaryLoading(false);
+  }
+
+  // Fetch the AI narrative for a finished graph (one call, off the build hot path).
+  async function generateSummary(g: FactGraph) {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    setSummary(null);
+    try {
+      const res = await fetch("/api/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ graph: g, config: runConfig() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      setSummary(data.summary ?? "");
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Could not generate summary");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  // When a run finishes (verdict resolved, no longer loading), auto-open the brief and
+  // generate its narrative once. Guarded by runId so it fires exactly once per run.
+  useEffect(() => {
+    if (loading || graph.source.verdict === null) return;
+    if (summarizedRunIdRef.current === runId) return;
+    summarizedRunIdRef.current = runId;
+    setReportOpen(true);
+    generateSummary(graph);
+    // generateSummary/graph captured intentionally — we summarize the finished graph once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, runId, graph.source.verdict]);
 
   // Replay a captured run as a simulated stream — shared by the automatic wifi-death
   // fallback and the manual "Cached" demo button. The caller owns loading / runId.
@@ -91,6 +152,7 @@ export default function Workbench() {
     setLoading(true);
     setError(null);
     setCached(false);
+    resetReport();
     // Reset to an empty graph for this source; the stream builds it node by node.
     setGraph(emptyGraph(trimmed));
     setRunId((n) => n + 1);
@@ -100,17 +162,7 @@ export default function Workbench() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({
-          text: trimmed,
-          config: {
-            model: settings.model,
-            temperature: settings.temperature,
-            thinking: settings.thinking,
-            maxClaims: settings.maxClaims,
-            anthropicKey: settings.anthropicKey || undefined,
-            exaKey: settings.exaKey || undefined,
-          },
-        }),
+        body: JSON.stringify({ text: trimmed, config: runConfig() }),
       });
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}));
@@ -160,6 +212,7 @@ export default function Workbench() {
     if (!fallback) return;
     abortRef.current?.abort(); // bail on any in-flight live run so we don't fight over the graph
     setError(null);
+    resetReport();
     setLoading(true);
     setRunId((n) => n + 1);
     try {
@@ -276,6 +329,29 @@ export default function Workbench() {
 
       <main className="relative flex-1">
         <FactGraphCanvas key={runId} graph={graph} />
+        <RunReport
+          graph={graph}
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+          summary={summary}
+          summaryLoading={summaryLoading}
+          summaryError={summaryError}
+        />
+        {/* Reopen the brief once a run has resolved and the panel is closed. */}
+        {!reportOpen && !loading && runId > 0 && graph.source.verdict !== null && (
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="absolute left-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] shadow-xl backdrop-blur transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
+            style={{
+              borderColor: "var(--line-2)",
+              background: "rgba(11,14,21,0.9)",
+              color: "var(--ink-2)",
+            }}
+          >
+            ▣ Brief
+          </button>
+        )}
         {cached && (
           <div className="pointer-events-none absolute right-4 top-4 z-10">
             <span

@@ -76,6 +76,28 @@ describe("parseConfig maxClaims", () => {
   });
 });
 
+describe("parseConfig maxQuestions", () => {
+  it("defaults maxQuestions to 2", () => {
+    expect(parseConfig({}).maxQuestions).toBe(2);
+  });
+
+  it("accepts an in-range integer maxQuestions", () => {
+    expect(parseConfig({ maxQuestions: 1 }).maxQuestions).toBe(1);
+  });
+
+  it("rejects maxQuestions below the minimum", () => {
+    expect(() => parseConfig({ maxQuestions: 0 })).toThrow(/question/i);
+  });
+
+  it("rejects maxQuestions above the maximum", () => {
+    expect(() => parseConfig({ maxQuestions: 3 })).toThrow(/question/i);
+  });
+
+  it("rejects a non-integer maxQuestions", () => {
+    expect(() => parseConfig({ maxQuestions: 1.5 })).toThrow(/question/i);
+  });
+});
+
 describe("supportsTemperature", () => {
   it("reports Opus 4.8 as not supporting temperature (the API deprecated it)", () => {
     expect(supportsTemperature("claude-opus-4-8")).toBe(false);

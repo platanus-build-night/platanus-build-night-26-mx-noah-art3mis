@@ -3,8 +3,8 @@
 // extended thinking is on, and which API keys to use. It is built once per request
 // from the (untrusted) client body via parseConfig, then threaded down as `deps`.
 
-// The models we expose in the UI. Sonnet is the default speed/quality balance for
-// the per-claim reasoning calls; Opus for harder runs, Haiku for cheaper/faster.
+// The models we expose in the UI. Haiku is the default — cheapest/fastest for the
+// per-claim reasoning calls; Sonnet for the speed/quality balance, Opus for harder runs.
 export const MODELS = {
   "claude-opus-4-8": "Opus 4.8",
   "claude-sonnet-4-6": "Sonnet 4.6",
@@ -13,7 +13,7 @@ export const MODELS = {
 
 export type ModelId = keyof typeof MODELS;
 
-export const DEFAULT_MODEL: ModelId = "claude-sonnet-4-6";
+export const DEFAULT_MODEL: ModelId = "claude-haiku-4-5-20251001";
 
 // Newer frontier models deprecated the `temperature` parameter — the API rejects any
 // request that includes it. For these we send no temperature and let the model sample
@@ -38,6 +38,12 @@ export const MIN_CLAIMS = 1;
 export const MAX_CLAIMS = 10;
 export const DEFAULT_CLAIMS = 5;
 
+// Resolving questions generated per checkable claim. Same legibility logic as claims —
+// the graph is claims × questions × sources — so it is capped low and surfaced in the UI.
+export const MIN_QUESTIONS = 1;
+export const MAX_QUESTIONS = 2;
+export const DEFAULT_QUESTIONS = 2;
+
 export interface RunConfig {
   model: ModelId;
   /** 0..1. Lower = more deterministic. Ignored (forced to 1) when thinking is on. */
@@ -45,6 +51,8 @@ export interface RunConfig {
   thinking: boolean;
   /** Atomic claims the extractor keeps (MIN_CLAIMS..MAX_CLAIMS) — a legibility cap. */
   maxClaims: number;
+  /** Resolving questions per checkable claim (MIN_QUESTIONS..MAX_QUESTIONS) — a legibility cap. */
+  maxQuestions: number;
   /** User-supplied key; blank ⇒ the server falls back to its ANTHROPIC_API_KEY env. */
   anthropicKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
@@ -58,6 +66,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   temperature: 0,
   thinking: false,
   maxClaims: DEFAULT_CLAIMS,
+  maxQuestions: DEFAULT_QUESTIONS,
 };
 
 function isModelId(value: unknown): value is ModelId {
@@ -107,11 +116,21 @@ export function parseConfig(input: unknown): RunConfig {
     maxClaims = m;
   }
 
+  let maxQuestions = DEFAULT_CONFIG.maxQuestions;
+  if (raw.maxQuestions !== undefined) {
+    const q = raw.maxQuestions;
+    if (typeof q !== "number" || !Number.isInteger(q) || q < MIN_QUESTIONS || q > MAX_QUESTIONS) {
+      throw new Error(`maxQuestions must be an integer between ${MIN_QUESTIONS} and ${MAX_QUESTIONS}`);
+    }
+    maxQuestions = q;
+  }
+
   return {
     model,
     temperature,
     thinking: Boolean(raw.thinking),
     maxClaims,
+    maxQuestions,
     anthropicKey: cleanKey(raw.anthropicKey),
     exaKey: cleanKey(raw.exaKey),
   };
