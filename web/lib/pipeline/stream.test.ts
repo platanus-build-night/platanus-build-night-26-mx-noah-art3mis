@@ -157,6 +157,22 @@ describe("collectGraph", () => {
     expect(graph.source.verdict).toBe("conflicting");
   });
 
+  it("leaves a relevance-dropped claim unverdicted and counts it as dropped, not NEI", async () => {
+    extractClaims.mockResolvedValue([claim("c1"), { ...claim("c2"), relevant: false }]);
+    generateQuestions.mockImplementation(async (c: ClaimItem) =>
+      c.relevant === false ? [] : [question(c.id, 1)],
+    );
+    resolveQuestion.mockResolvedValue([evidence("c1-q1", "supports")]);
+
+    const graph = await collectGraph("post", deps);
+    const c1 = graph.claims.find((c) => c.id === "c1")!;
+    const c2 = graph.claims.find((c) => c.id === "c2")!;
+    expect(c1.verdict).toBe("supported");
+    expect(c2.verdict).toBeNull(); // dropped claims carry no verdict at all
+    expect(graph.source.verdict).toBe("supported");
+    expect(graph.source.tally).toMatchObject({ supported: 1, total: 1, dropped: 1 });
+  });
+
   it("keeps an unverifiable claim as nei while the document resolves on its checkable claims", async () => {
     extractClaims.mockResolvedValue([claim("c1", true), claim("c2", false)]);
     generateQuestions.mockImplementation(async (c: ClaimItem) =>

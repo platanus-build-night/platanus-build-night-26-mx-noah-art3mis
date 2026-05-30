@@ -1,4 +1,5 @@
 import type { ClaimItem, ClaimTally, EvidenceItem, Reliability, Verdict } from "../graph-types";
+import { isSearchable } from "./claim-status";
 
 // Deterministic verdict aggregation — STATED, not learned (PLAN.md / CONTEXT.md). The
 // mapping from evidence to verdict is a fixed rule the user can inspect, not a black box.
@@ -24,10 +25,10 @@ export function isDeciding(e: EvidenceItem): boolean {
 
 /** Aggregate a single claim's evidence into its advisory Verdict. */
 export function claimVerdict(claim: ClaimItem, evidence: EvidenceItem[]): Verdict {
-  // Claims a text+web build can't check (media provenance / synthetic), and claims that
-  // aren't verifiable factual assertions at all (opinion / value judgement / prediction —
-  // SAFE's "irrelevant"), both resolve to NEI by design without consuming the evidence bar.
-  if (!claim.checkable || claim.checkworthy === false) return "nei";
+  // Non-searchable claims resolve to NEI by design without consuming the evidence bar:
+  // relevance-dropped background, media-provenance claims a text+web build can't check, and
+  // subjective claims (opinion / value judgement / prediction) that no primary source settles.
+  if (!isSearchable(claim)) return "nei";
 
   const deciding = evidence.filter(isDeciding);
   const supports = deciding.some((e) => e.stance === "supports");
@@ -60,12 +61,13 @@ export function sourceVerdict(claimVerdicts: Verdict[]): Verdict {
 }
 
 /**
- * Per-verdict counts over a source's claims — the graded "X of N supported" signal
- * (SAFE F1@K). The categorical sourceVerdict collapses this; the tally preserves it so
- * the UI can show "2 of 3 supported · 1 NEI" instead of only a single label.
+ * Per-verdict counts over a source's CHECKED claims — the graded "X of N supported" signal
+ * (SAFE F1@K). The categorical sourceVerdict collapses this; the tally preserves it so the
+ * UI can show "2 of 3 supported · 1 NEI" instead of only a single label. `dropped` carries
+ * the relevance-filtered claims separately so they're visible without inflating N.
  */
-export function tallyClaims(claimVerdicts: Verdict[]): ClaimTally {
-  const tally: ClaimTally = { supported: 0, refuted: 0, conflicting: 0, nei: 0, total: claimVerdicts.length };
+export function tallyClaims(claimVerdicts: Verdict[], dropped = 0): ClaimTally {
+  const tally: ClaimTally = { supported: 0, refuted: 0, conflicting: 0, nei: 0, total: claimVerdicts.length, dropped };
   for (const v of claimVerdicts) tally[v] += 1;
   return tally;
 }

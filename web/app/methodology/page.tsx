@@ -10,14 +10,14 @@ export const metadata: Metadata = {
 const PIPELINE: { n: string; title: string; body: string; color: string }[] = [
   {
     n: "01",
-    title: "Decompose",
-    body: "The pasted source text is broken into atomic, individually checkable claims — the document-first tradition (SAFE / FacTool / Loki), where the pipeline extracts the units rather than receiving a pre-isolated claim.",
+    title: "Segment",
+    body: "The pasted source text is split into the complete set of atomic utterances it asserts or presupposes — granular and exhaustive, breaking apart lists and surfacing the background a reader takes for granted (“Springfield is a city”, “immigrants arrived”). This is the document-first tradition (SAFE / FacTool / Loki): the pipeline extracts the units rather than receiving a pre-isolated claim.",
     color: "#97a2b4",
   },
   {
     n: "02",
-    title: "Decontextualize",
-    body: "Each claim is rewritten to stand alone — the date, place, and actor from the surrounding text are injected, so a fragment like “they seized the airport” becomes a searchable assertion. Over-atomization that strips context is the known failure mode; the target is “molecular facts”.",
+    title: "Decontextualize & triage",
+    body: "Each utterance is rewritten to stand alone — date, place, and actor injected, so “they seized the airport” becomes a searchable assertion (the target is “molecular facts”; over-atomization that strips context is the known failure mode). A relevance filter then keeps only the load-bearing, contested claims for checking; trivial background and presuppositions are shown but dropped — SAFE’s separate relevance step.",
     color: "#97a2b4",
   },
   {
@@ -252,7 +252,7 @@ export default function MethodologyPage() {
         <section className="mt-14">
           <SectionTitle>The pipeline</SectionTitle>
           <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--ink-3)]">
-            decompose → decontextualize → question → retrieve → verify → explain
+            segment → decontextualize → triage → question → retrieve → verify → explain
           </p>
           <ol className="mt-6 flex flex-col gap-4">
             {PIPELINE.map((step) => (

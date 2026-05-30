@@ -1,5 +1,6 @@
 import type { AnthropicCaller } from "../anthropic";
 import type { ClaimItem, QuestionItem } from "../graph-types";
+import { isSearchable } from "./claim-status";
 
 // Legibility cap (PLAN.md): ~2 questions per claim.
 const MAX_QUESTIONS = 2;
@@ -18,9 +19,9 @@ export async function generateQuestions(
   claim: ClaimItem,
   ask: AnthropicCaller,
 ): Promise<QuestionItem[]> {
-  // Unverifiable-by-text claims and non-checkworthy (opinion/subjective) claims get no
-  // questions — both resolve to NEI by design without consuming a search.
-  if (!claim.checkable || claim.checkworthy === false) return [];
+  // Only searchable claims get questions: relevance-dropped (trivial background),
+  // unverifiable-by-text, and non-checkworthy (opinion) claims all skip retrieval.
+  if (!isSearchable(claim)) return [];
 
   const questions = await ask.askJSON<string[]>(
     `Claim: "${claim.text}"\n\nGenerate the resolving questions.`,

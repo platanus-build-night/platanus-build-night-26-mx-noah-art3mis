@@ -40,8 +40,16 @@ export interface ClaimItem {
   rationale?: string; // one-line why, advisory
   /** false = provenance/synthetic/origin type this text build can't check → NEI by design. */
   checkable: boolean;
-  /** false = subjective/opinion/prediction, not a verifiable factual assertion (SAFE "irrelevant") → NEI, no search. Absent = check-worthy. */
+  /** false = subjective/opinion/prediction, not a verifiable factual assertion → NEI, no search. Absent = check-worthy. */
   checkworthy?: boolean;
+  /**
+   * SAFE's relevance axis (separate from check-worthiness): false = a trivial/uncontested
+   * presupposition or entailment the segmenter surfaced ("Springfield is a city") that is
+   * NOT the load-bearing assertion a fact-check exists to verify. Relevance-dropped claims
+   * are shown (so the full decomposition is legible) but never searched and not tallied.
+   * Absent = relevant (the default), so existing claims need no migration.
+   */
+  relevant?: boolean;
   /** Event date (ISO YYYY-MM-DD) parsed from the source — bounds the retrieval window. */
   date?: string;
   /** Proper nouns / numbers the decontextualizer injected that are absent from the source (over-specification audit). */
@@ -54,7 +62,8 @@ export interface ClaimTally {
   refuted: number;
   conflicting: number;
   nei: number;
-  total: number;
+  total: number; // checked claims only (the "of N" in "X of N supported")
+  dropped?: number; // relevance-dropped claims — segmented out, shown but not checked
 }
 
 /** The raw pasted blob (tweet / post / message / article). Root of the graph. */

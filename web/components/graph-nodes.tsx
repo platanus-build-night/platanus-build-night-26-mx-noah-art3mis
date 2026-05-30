@@ -7,6 +7,7 @@ import type {
 } from "@/lib/graph-to-flow";
 import { VERDICT_META, STANCE_META, RELIABILITY_META } from "@/lib/visuals";
 import type { Verdict, Reliability, ClaimTally } from "@/lib/graph-types";
+import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
 
 const handleStyle = { width: 7, height: 7, border: 0, background: "var(--ink-4)" };
 const IN = <Handle type="target" position={Position.Left} style={handleStyle} />;
@@ -64,6 +65,20 @@ function VerdictBadge({ verdict }: { verdict: Verdict | null }) {
   );
 }
 
+/* A claim the relevance filter segmented out — shown for legibility, never searched. */
+function DroppedBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-[5px] border px-2 py-[3px]"
+      style={{ borderColor: "var(--line-2)", background: "transparent" }}
+    >
+      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
+        ▽ dropped
+      </span>
+    </span>
+  );
+}
+
 function ReliabilityMeter({ reliability }: { reliability: Reliability }) {
   const r = RELIABILITY_META[reliability];
   return (
@@ -94,7 +109,7 @@ const cardShadow = "0 16px 36px -20px rgba(0,0,0,0.85)";
 
 /* The graded support ratio — "X of N supported", with the rest broken down (SAFE F1@K). */
 function SupportRatio({ tally }: { tally: ClaimTally }) {
-  if (tally.total === 0) return null;
+  if (tally.total === 0 && !tally.dropped) return null;
   const parts: { n: number; verdict: Verdict }[] = [
     { n: tally.refuted, verdict: "refuted" },
     { n: tally.conflicting, verdict: "conflicting" },
@@ -112,6 +127,9 @@ function SupportRatio({ tally }: { tally: ClaimTally }) {
             · {p.n} {p.verdict === "nei" ? "NEI" : p.verdict}
           </span>
         ))}
+      {tally.dropped ? (
+        <span className="text-[var(--ink-3)]">· {tally.dropped} dropped</span>
+      ) : null}
     </div>
   );
 }
@@ -141,6 +159,7 @@ function SourceNodeCard({ data }: NodeProps<SourceNode>) {
 /* A machine-extracted, decontextualized assertion — body sans; verdict in serif. */
 function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
   const { item } = data;
+  const dropped = isRelevanceDropped(item);
   const m = item.verdict ? VERDICT_META[item.verdict] : null;
   const accent = m?.color ?? "var(--accent)";
   return (
@@ -148,19 +167,29 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
       className="vt-node relative rounded-lg border bg-[var(--panel)] px-3.5 py-3"
       style={{
         width: 320,
-        borderColor: m ? `${m.color}3d` : "var(--line)",
-        boxShadow: m ? `0 0 0 1px ${m.color}14, ${cardShadow}` : cardShadow,
+        opacity: dropped ? 0.5 : 1,
+        borderStyle: dropped ? "dashed" : "solid",
+        borderColor: dropped ? "var(--line-2)" : m ? `${m.color}3d` : "var(--line)",
+        boxShadow: dropped ? "none" : m ? `0 0 0 1px ${m.color}14, ${cardShadow}` : cardShadow,
       }}
     >
       {IN}
       <div className="mb-2 flex items-center justify-between gap-2">
         <Kicker>Claim · {item.id.toUpperCase()}</Kicker>
-        <VerdictBadge verdict={item.verdict} />
+        {dropped ? <DroppedBadge /> : <VerdictBadge verdict={item.verdict} />}
       </div>
-      <p className="text-[12.5px] font-medium leading-[1.45] text-[var(--ink-1)]">
+      <p
+        className="text-[12.5px] font-medium leading-[1.45]"
+        style={{ color: dropped ? "var(--ink-2)" : "var(--ink-1)" }}
+      >
         {item.text}
       </p>
-      {item.rationale && (
+      {dropped && (
+        <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
+          ▽ background · not the contested claim — segmented out, not checked
+        </p>
+      )}
+      {!dropped && item.rationale && (
         <p
           className="mt-2 border-l-2 pl-2 font-mono text-[10px] leading-[1.5] text-[var(--ink-2)]"
           style={{ borderColor: `${accent}80` }}
@@ -168,12 +197,12 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
           {item.rationale}
         </p>
       )}
-      {!item.checkable && (
+      {!dropped && !item.checkable && (
         <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
           ⚠ not text-verifiable
         </p>
       )}
-      {item.checkworthy === false && (
+      {!dropped && item.checkworthy === false && (
         <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
           ⚠ opinion · not check-worthy
         </p>

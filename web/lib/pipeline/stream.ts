@@ -5,6 +5,7 @@ import { extractClaims } from "./extract";
 import { generateQuestions } from "./questions";
 import { resolveQuestion, rationaleFor } from "./resolve";
 import { claimVerdict, sourceVerdict, tallyClaims } from "./verdict";
+import { isRelevanceDropped } from "./claim-status";
 
 /**
  * Run the VERITRACE pipeline as a stream of events. The rhythm matches the demo
@@ -39,8 +40,11 @@ export async function* streamPipeline(
   }
   for (const q of allQuestions) remaining.set(q.claimId, (remaining.get(q.claimId) ?? 0) + 1);
 
-  // 3. Claims with no questions (unverifiable-by-text) resolve to NEI immediately.
+  // 3. Question-less claims resolve to NEI immediately (unverifiable-by-text / opinion).
+  // Relevance-dropped claims are the exception: they were segmented out before search, so
+  // they carry no verdict at all — the renderer shows them greyed as "dropped", not NEI.
   for (const c of claims) {
+    if (isRelevanceDropped(c)) continue;
     if ((remaining.get(c.id) ?? 0) === 0) {
       const verdict = claimVerdict(c, []);
       verdictByClaim.set(c.id, verdict);
@@ -71,9 +75,13 @@ export async function* streamPipeline(
     }
   }
 
-  // 5. Finale: aggregate to the source-text verdict (in claim order), with the support tally.
-  const verdicts = claims.map((c) => verdictByClaim.get(c.id) ?? "nei");
-  yield { type: "source_verdict", verdict: sourceVerdict(verdicts), tally: tallyClaims(verdicts) };
+  // 5. Finale: aggregate to the source-text verdict (in claim order), with the support
+  // tally. Relevance-dropped claims are excluded from the aggregate and the "of N" — they
+  // were never checked — but counted separately so the UI can show "· 3 dropped".
+  const checked = claims.filter((c) => !isRelevanceDropped(c));
+  const verdicts = checked.map((c) => verdictByClaim.get(c.id) ?? "nei");
+  const tally = tallyClaims(verdicts, claims.length - checked.length);
+  yield { type: "source_verdict", verdict: sourceVerdict(verdicts), tally };
   yield { type: "done" };
 }
 

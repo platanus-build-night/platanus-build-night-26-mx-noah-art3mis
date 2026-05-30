@@ -37,6 +37,12 @@ describe("claimVerdict", () => {
     expect(claimVerdict(c, [evidence("supports", 0.99)])).toBe("nei");
   });
 
+  it("returns nei for a relevance-dropped claim regardless of evidence", () => {
+    // A trivial background claim the relevance filter dropped is never given a real verdict.
+    const c = claim({ relevant: false });
+    expect(claimVerdict(c, [evidence("supports", 0.99)])).toBe("nei");
+  });
+
   it("returns supported when only confident supporting evidence exists", () => {
     expect(claimVerdict(claim(), [evidence("supports", 0.8)])).toBe("supported");
   });
@@ -122,10 +128,17 @@ describe("tallyClaims", () => {
       conflicting: 0,
       nei: 1,
       total: 4,
+      dropped: 0,
     });
   });
 
+  it("carries the relevance-dropped count without inflating the checked total", () => {
+    const tally = tallyClaims(["supported", "refuted"], 3);
+    expect(tally.total).toBe(2);
+    expect(tally.dropped).toBe(3);
+  });
+
   it("returns an all-zero tally for an empty claim set", () => {
-    expect(tallyClaims([])).toEqual({ supported: 0, refuted: 0, conflicting: 0, nei: 0, total: 0 });
+    expect(tallyClaims([])).toEqual({ supported: 0, refuted: 0, conflicting: 0, nei: 0, total: 0, dropped: 0 });
   });
 });
