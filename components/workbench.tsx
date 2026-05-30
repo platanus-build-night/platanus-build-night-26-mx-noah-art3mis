@@ -330,7 +330,7 @@ export default function Workbench() {
       </div>
 
       <main className="relative flex-1">
-        <FactGraphCanvas key={runId} graph={graph} />
+        <FactGraphCanvas key={runId} graph={graph} showInternals={settings.showInternals} />
         <RunReport
           graph={graph}
           open={reportOpen}

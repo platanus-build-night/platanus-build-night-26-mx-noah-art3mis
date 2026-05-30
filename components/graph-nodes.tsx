@@ -1,3 +1,4 @@
+import { createContext, memo, useContext } from "react";
 import { Handle, Position, type NodeProps, type NodeTypes } from "@xyflow/react";
 import type {
   SourceNode,
@@ -6,8 +7,15 @@ import type {
   EvidenceNode,
 } from "@/lib/graph-to-flow";
 import { VERDICT_META, STANCE_META, RELIABILITY_META } from "@/lib/visuals";
-import type { Verdict, Reliability, ClaimTally } from "@/lib/graph-types";
+import type { Verdict, Reliability, ClaimTally, QuestionTrace } from "@/lib/graph-types";
 import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
+
+/**
+ * Whether to reveal normally-hidden pipeline internals (HyDE seed, the agent's queries +
+ * summary, stance confidence, the raw source fragment, the event date) in the node cards.
+ * Driven by the "show pipeline internals" setting; provided by FactGraphCanvas. Default off.
+ */
+export const InternalsContext = createContext(false);
 
 const handleStyle = { width: 7, height: 7, border: 0, background: "var(--ink-4)" };
 const IN = <Handle type="target" position={Position.Left} style={handleStyle} />;
@@ -134,6 +142,40 @@ function SupportRatio({ tally }: { tally: ClaimTally }) {
   );
 }
 
+function TraceLabel({ children }: { children: React.ReactNode }) {
+  return <span className="uppercase tracking-wider text-[var(--ink-4)]">{children}</span>;
+}
+
+/* The retrieval internals behind a question — HyDE seed, the agent's queries, its summary. */
+function QuestionTraceBlock({ trace }: { trace: QuestionTrace }) {
+  return (
+    <div className="relative mt-2 flex flex-col gap-1.5 border-t border-[var(--line)] pt-2 font-mono text-[9.5px] leading-[1.5] text-[var(--ink-3)]">
+      {trace.hydePassage && (
+        <div>
+          <TraceLabel>HyDE seed</TraceLabel>
+          <p className="mt-0.5 italic text-[var(--ink-2)]">“{trace.hydePassage}”</p>
+        </div>
+      )}
+      {trace.searchQueries.length > 0 && (
+        <div>
+          <TraceLabel>queries</TraceLabel>
+          <ul className="mt-0.5">
+            {trace.searchQueries.map((q, i) => (
+              <li key={i} className="text-[var(--ink-2)]">› {q}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {trace.gatherSummary && (
+        <div>
+          <TraceLabel>summary</TraceLabel>
+          <p className="mt-0.5 text-[var(--ink-2)]">{trace.gatherSummary}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* The artifact under examination — the human-authored viral post, set in serif. */
 function SourceNodeCard({ data }: NodeProps<SourceNode>) {
   const { item } = data;
@@ -159,6 +201,7 @@ function SourceNodeCard({ data }: NodeProps<SourceNode>) {
 /* A machine-extracted, decontextualized assertion — body sans; verdict in serif. */
 function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
   const { item } = data;
+  const internals = useContext(InternalsContext);
   const dropped = isRelevanceDropped(item);
   const m = item.verdict ? VERDICT_META[item.verdict] : null;
   const accent = m?.color ?? "var(--accent)";
@@ -175,7 +218,17 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
     >
       {IN}
       <div className="mb-2 flex items-center justify-between gap-2">
-        <Kicker>Claim · {item.id.toUpperCase()}</Kicker>
+        <span className="flex items-center gap-2">
+          <Kicker>Claim · {item.id.toUpperCase()}</Kicker>
+          {internals && item.date && (
+            <span
+              className="font-mono text-[9px] tabular-nums text-[var(--ink-3)]"
+              title="Event date parsed from the source — bounds the retrieval window"
+            >
+              {item.date}
+            </span>
+          )}
+        </span>
         {dropped ? <DroppedBadge /> : <VerdictBadge verdict={item.verdict} />}
       </div>
       <p
@@ -184,6 +237,14 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
       >
         {item.text}
       </p>
+      {internals && item.original && item.original.trim() !== item.text.trim() && (
+        <p
+          className="mt-1.5 font-mono text-[10px] leading-[1.5] text-[var(--ink-3)]"
+          title="Verbatim fragment from the source, before decontextualization"
+        >
+          verbatim: “{item.original}”
+        </p>
+      )}
       {dropped && (
         <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
           ▽ background · not the contested claim — segmented out, not checked
@@ -224,6 +285,7 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
 /* The machine's probe — mono, phosphor cyan; shimmer sweep while Exa runs. */
 function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
   const { item } = data;
+  const internals = useContext(InternalsContext);
   const searching = item.status === "searching";
   return (
     <div
@@ -255,6 +317,7 @@ function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
       <p className="relative font-mono text-[11px] leading-[1.5] text-[var(--ink-2)]">
         {item.text}
       </p>
+      {internals && item.trace && <QuestionTraceBlock trace={item.trace} />}
       {OUT}
     </div>
   );
@@ -263,6 +326,7 @@ function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
 /* A filed primary source — passage in serif (the quote), metadata in mono. */
 function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
   const { item } = data;
+  const internals = useContext(InternalsContext);
   const stance = STANCE_META[item.stance];
   return (
     <div
@@ -279,6 +343,9 @@ function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
         style={{ background: stance.color }}
       />
       {IN}
+      {/* When a question's evidence wraps into a grid, each card feeds its right neighbour
+          (the "comb" layout in graph-to-flow), so the right handle is a flow source. */}
+      <Handle type="source" id="flow-out" position={Position.Right} style={handleStyle} />
       {/* Same-rank conflict overlay attaches here, not to the left/right flow handles. */}
       <Handle type="source" id="conflict-out" position={Position.Top} style={handleStyle} />
       <Handle type="target" id="conflict-in" position={Position.Bottom} style={handleStyle} />
@@ -318,6 +385,14 @@ function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
           ▸ {stance.label}
         </span>
         <ReliabilityMeter reliability={item.reliability} />
+        {internals && item.stanceConfidence != null && (
+          <span
+            className="font-mono text-[9px] uppercase tracking-wider text-[var(--ink-3)]"
+            title="Classifier stance confidence — half the gate that lets evidence move a verdict"
+          >
+            conf {Math.round(item.stanceConfidence * 100)}%
+          </span>
+        )}
         <span className="ml-auto font-mono text-[9px] uppercase tracking-wider text-[var(--ink-3)]">
           {item.sourceType}
         </span>
@@ -326,9 +401,11 @@ function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
   );
 }
 
+// Memoized so a stable node object (see useGraphFlow) skips re-rendering entirely. Cards still
+// re-render on a real data change or when the InternalsContext toggle flips (context bypasses memo).
 export const nodeTypes: NodeTypes = {
-  source: SourceNodeCard,
-  claim: ClaimNodeCard,
-  question: QuestionNodeCard,
-  evidence: EvidenceNodeCard,
+  source: memo(SourceNodeCard),
+  claim: memo(ClaimNodeCard),
+  question: memo(QuestionNodeCard),
+  evidence: memo(EvidenceNodeCard),
 };

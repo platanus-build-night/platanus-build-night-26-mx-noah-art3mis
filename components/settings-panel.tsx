@@ -27,6 +27,8 @@ export interface Settings {
   maxSources: number;
   anthropicKey: string;
   exaKey: string;
+  /** Display-only: reveal the pipeline's hidden retrieval internals in the graph. */
+  showInternals: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxSources: DEFAULT_SOURCES,
   anthropicKey: "",
   exaKey: "",
+  showInternals: false,
 };
 
 const labelCls =
@@ -192,6 +195,27 @@ export function SettingsPanel({
           />
           {settings.thinking ? "On" : "Off"}
         </button>
+      </div>
+
+      {/* Show pipeline internals — display-only; reveals hidden retrieval steps in the graph */}
+      <div className="flex flex-col gap-1.5">
+        <label className={labelCls}>Show pipeline internals</label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.showInternals}
+          onClick={() => set("showInternals", !settings.showInternals)}
+          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full transition-colors"
+            style={{ background: settings.showInternals ? "var(--accent)" : "var(--line-2)" }}
+          />
+          {settings.showInternals ? "On" : "Off"}
+        </button>
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          HyDE seed, agent queries + summary, stance confidence, raw fragment.
+        </span>
       </div>
 
       {/* API keys */}

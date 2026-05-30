@@ -13,15 +13,22 @@ function caller(askText: ReturnType<typeof vi.fn>): AnthropicCaller {
 describe("expandQuery (HyDE)", () => {
   it("appends the hypothetical passage to the original question text", async () => {
     const askText = vi.fn().mockResolvedValue("Wire services reported the death of the cartel leader.");
-    const query = await expandQuery(claim, question, caller(askText));
-    expect(query).toContain("Did El Mencho die?");
-    expect(query).toContain("Wire services reported");
+    const { seed } = await expandQuery(claim, question, caller(askText));
+    expect(seed).toContain("Did El Mencho die?");
+    expect(seed).toContain("Wire services reported");
   });
 
-  it("falls back to the bare question when the model returns nothing", async () => {
+  it("returns the bare hypothetical separately (for the surfaced trace)", async () => {
+    const askText = vi.fn().mockResolvedValue("  Wire services reported the death.  ");
+    const { hypothetical } = await expandQuery(claim, question, caller(askText));
+    expect(hypothetical).toBe("Wire services reported the death.");
+  });
+
+  it("falls back to the bare question, with an empty hypothetical, when the model returns nothing", async () => {
     const askText = vi.fn().mockResolvedValue("   ");
-    const query = await expandQuery(claim, question, caller(askText));
-    expect(query).toBe("Did El Mencho die?");
+    const { seed, hypothetical } = await expandQuery(claim, question, caller(askText));
+    expect(seed).toBe("Did El Mencho die?");
+    expect(hypothetical).toBe("");
   });
 
   it("instructs the model not to assert a verdict (no confirmation bias in retrieval)", async () => {

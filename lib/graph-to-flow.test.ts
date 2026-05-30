@@ -215,10 +215,33 @@ describe("graphToFlow evidence wrapping", () => {
     expect(rows.size).toBe(2);
   });
 
-  it("still emits one question→evidence edge per source when wrapped", () => {
+  it("wires each wrapped row as a comb so edges never cross sibling cards", () => {
+    // 5 evidence, 4 columns => row0 = [e0..e3], row1 = [e4]. The question feeds each row's
+    // leftmost card; the rest of a row hang off their left neighbour's right (flow-out) handle,
+    // so every edge joins adjacent cards instead of fanning across the grid into a buried handle.
     const { edges } = graphToFlow(manyEvidenceGraph(5));
-    const evEdges = edges.filter((e) => e.source === "c1-q1" && e.target.startsWith("c1-q1-e"));
+    const evEdges = edges.filter((e) => e.target.startsWith("c1-q1-e"));
+    // Every source still gets exactly one incoming stance edge — coverage is unchanged.
     expect(evEdges).toHaveLength(5);
+    expect(new Set(evEdges.map((e) => e.target)).size).toBe(5);
+
+    const fromQuestion = evEdges.filter((e) => e.source === "c1-q1");
+    expect(fromQuestion.map((e) => e.target).sort()).toEqual(["c1-q1-e0", "c1-q1-e4"]);
+    for (const e of fromQuestion) expect(e.sourceHandle).toBeUndefined();
+
+    // Inner cards of row0 chain off the previous card via its right-side flow handle.
+    const chained = evEdges.filter((e) => e.source !== "c1-q1");
+    expect(chained.map((e) => e.source).sort()).toEqual(["c1-q1-e0", "c1-q1-e1", "c1-q1-e2"]);
+    for (const e of chained) expect(e.sourceHandle).toBe("flow-out");
+  });
+
+  it("labels every comb edge with the target card's stance", () => {
+    const g = manyEvidenceGraph(5);
+    g.evidence[2].stance = "refutes"; // a mixed row must still label each card by its own stance
+    const { edges } = graphToFlow(g);
+    const e2 = edges.find((e) => e.target === "c1-q1-e2")!;
+    expect(e2.label).toBe(STANCE_META.refutes.label);
+    expect(e2.style?.stroke).toBe(STANCE_META.refutes.color);
   });
 });
 

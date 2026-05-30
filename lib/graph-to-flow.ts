@@ -26,14 +26,35 @@ const SIZES: Record<AppNode["type"], { w: number; h: number }> = {
   evidence: { w: 320, h: 210 },
 };
 
-export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[] } {
+/** Build the (unpositioned) node list for a graph — data only; layout fills in positions. */
+export function buildNodes(graph: FactGraph): AppNode[] {
   const nodes: AppNode[] = [];
-  const edges: Edge[] = [];
-
   nodes.push({ id: graph.source.id, type: "source", position: { x: 0, y: 0 }, data: { item: graph.source } });
-
   for (const claim of graph.claims) {
     nodes.push({ id: claim.id, type: "claim", position: { x: 0, y: 0 }, data: { item: claim } });
+  }
+  for (const q of graph.questions) {
+    nodes.push({ id: q.id, type: "question", position: { x: 0, y: 0 }, data: { item: q } });
+  }
+  for (const ev of graph.evidence) {
+    nodes.push({ id: ev.id, type: "evidence", position: { x: 0, y: 0 }, data: { item: ev } });
+  }
+  return nodes;
+}
+
+/**
+ * The structural + comb edges that dagre ranks on and the canvas draws (everything EXCEPT
+ * the conflict overlay, which rides dedicated handles and must not perturb the layout).
+ *
+ * Evidence under one question wraps into a grid of EV_COLS columns (see computeLayout). Fanning
+ * every card out from the question would force edges to the inner columns to cross their
+ * sibling cards — they only reach a left-edge handle that sits *behind* other cards. Instead
+ * wire each row as a "comb": the question feeds the row's leftmost card, and each remaining
+ * card hangs off its left neighbour's right handle, so every edge joins adjacent cards only.
+ */
+export function buildFlowEdges(graph: FactGraph): Edge[] {
+  const edges: Edge[] = [];
+  for (const claim of graph.claims) {
     edges.push({
       id: `e-${graph.source.id}-${claim.id}`,
       source: graph.source.id,
@@ -43,9 +64,7 @@ export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[]
       style: { stroke: "#2b3645", strokeWidth: 1.5 },
     });
   }
-
   for (const q of graph.questions) {
-    nodes.push({ id: q.id, type: "question", position: { x: 0, y: 0 }, data: { item: q } });
     edges.push({
       id: `e-${q.claimId}-${q.id}`,
       source: q.claimId,
@@ -54,31 +73,67 @@ export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[]
       style: { stroke: "#1f6f78", strokeWidth: 1.5, strokeDasharray: "4 3" },
     });
   }
-
-  for (const ev of graph.evidence) {
-    nodes.push({ id: ev.id, type: "evidence", position: { x: 0, y: 0 }, data: { item: ev } });
-    const stroke = STANCE_META[ev.stance].color;
-    edges.push({
-      id: `e-${ev.questionId}-${ev.id}`,
-      source: ev.questionId,
-      target: ev.id,
-      type: "smoothstep",
-      label: STANCE_META[ev.stance].label,
-      animated: true,
-      style: { stroke, strokeWidth: 2 },
-      labelStyle: { fill: stroke, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" },
-      labelBgStyle: { fill: "#0b0e15", fillOpacity: 0.9 },
-      labelBgPadding: [5, 3],
-      labelBgBorderRadius: 3,
+  for (const row of evidenceRows(graph)) {
+    row.forEach((ev, i) => {
+      const fromQuestion = i === 0;
+      edges.push(
+        stanceEdge(fromQuestion ? ev.questionId : row[i - 1].id, ev, fromQuestion ? undefined : "flow-out"),
+      );
     });
   }
+  return edges;
+}
 
-  // Conflict overlay (CLUE): when one claim has both deciding support AND deciding
-  // refutation, link the two strongest opposing sources so "Conflicting" means *these two
-  // sources disagree*, not a flat label. Layout ranks on the structural edges only —
-  // these same-rank evidence↔evidence links would otherwise distort the dagre layering.
-  const laidOut = layout(nodes, edges);
-  return { nodes: laidOut, edges: [...edges, ...conflictEdges(graph)] };
+/**
+ * Stateless derive: build nodes + edges and lay them out fresh. The live canvas uses the
+ * cached hook (useGraphFlow) instead so it doesn't re-run dagre on every stream tick — but
+ * this stays the simple, pure entry point for tests and any one-shot render.
+ *
+ * Conflict overlay (CLUE): when one claim has both deciding support AND deciding refutation,
+ * link the two strongest opposing sources so "Conflicting" means *these two sources disagree*.
+ */
+export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[] } {
+  const nodes = buildNodes(graph);
+  const flowEdges = buildFlowEdges(graph);
+  const positions = computeLayout(nodes, flowEdges);
+  return {
+    nodes: nodes.map((n) => positionNode(n, positions.get(n.id))),
+    edges: [...flowEdges, ...conflictEdges(graph)],
+  };
+}
+
+/** Evidence grouped by question and chunked into the same rows the grid layout draws. */
+function evidenceRows(graph: FactGraph): EvidenceItem[][] {
+  const byQuestion = new Map<string, EvidenceItem[]>();
+  for (const ev of graph.evidence) {
+    const bucket = byQuestion.get(ev.questionId) ?? [];
+    bucket.push(ev);
+    byQuestion.set(ev.questionId, bucket);
+  }
+  const rows: EvidenceItem[][] = [];
+  for (const evs of byQuestion.values()) {
+    for (let i = 0; i < evs.length; i += EV_COLS) rows.push(evs.slice(i, i + EV_COLS));
+  }
+  return rows;
+}
+
+/** A stance-coloured, labelled flow edge into an evidence card (comb wiring). */
+function stanceEdge(source: string, ev: EvidenceItem, sourceHandle?: string): Edge {
+  const stroke = STANCE_META[ev.stance].color;
+  return {
+    id: `e-${source}-${ev.id}`,
+    source,
+    target: ev.id,
+    sourceHandle,
+    type: "smoothstep",
+    label: STANCE_META[ev.stance].label,
+    animated: true,
+    style: { stroke, strokeWidth: 2 },
+    labelStyle: { fill: stroke, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" },
+    labelBgStyle: { fill: "#0b0e15", fillOpacity: 0.9 },
+    labelBgPadding: [5, 3],
+    labelBgBorderRadius: 3,
+  };
 }
 
 /** Edges between the strongest opposing deciding sources within each conflicting claim. */
@@ -109,8 +164,8 @@ export function conflictEdges(graph: FactGraph): Edge[] {
       id: `conflict-${claimId}`,
       source: a.id,
       target: b.id,
-      // Evidence cards' left/right handles are target-only (leaves of the tree). Conflict
-      // links join siblings in the same rank, so they ride dedicated top/bottom handles.
+      // The left/right handles carry the structural comb flow. Conflict links join siblings
+      // in the same rank, so they ride dedicated top/bottom handles instead.
       sourceHandle: "conflict-out",
       targetHandle: "conflict-in",
       type: "smoothstep",
@@ -137,7 +192,19 @@ export function conflictEdges(graph: FactGraph): Edge[] {
 const EV_COLS = 4;
 const EV_COL_GAP = 24;
 
-function layout(nodes: AppNode[], edges: Edge[]): AppNode[] {
+/** A laid-out position + width for one node, keyed by node id in the returned map. */
+export interface NodePosition {
+  x: number;
+  y: number;
+  width: number;
+}
+
+/**
+ * Run dagre over the graph and return positions keyed by node id. Pure and stateless: the
+ * caller decides when to re-run it (the live canvas only re-runs on a topology change, not on
+ * every data patch). Width is returned per node so positionNode can apply it without re-deriving.
+ */
+export function computeLayout(nodes: AppNode[], edges: Edge[]): Map<string, NodePosition> {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: "LR", nodesep: 26, ranksep: 96, marginx: 48, marginy: 48 });
@@ -178,30 +245,26 @@ function layout(nodes: AppNode[], edges: Edge[]): AppNode[] {
 
   dagre.layout(g);
 
-  const positioned = new Map<string, AppNode>();
+  const positions = new Map<string, NodePosition>();
   for (const n of nonEvidence) {
     const s = SIZES[n.type];
     const p = g.node(n.id);
-    positioned.set(n.id, {
-      ...n,
-      position: { x: p.x - s.w / 2, y: p.y - s.h / 2 },
-      width: s.w,
-      style: { width: s.w },
-    });
+    positions.set(n.id, { x: p.x - s.w / 2, y: p.y - s.h / 2, width: s.w });
   }
   for (const row of rows) {
     const p = g.node(row.id);
     const left = p.x - rowWidth / 2;
     const top = p.y - evSize.h / 2;
     row.members.forEach((n, i) => {
-      positioned.set(n.id, {
-        ...n,
-        position: { x: left + i * (evSize.w + EV_COL_GAP), y: top },
-        width: evSize.w,
-        style: { width: evSize.w },
-      });
+      positions.set(n.id, { x: left + i * (evSize.w + EV_COL_GAP), y: top, width: evSize.w });
     });
   }
 
-  return nodes.map((n) => positioned.get(n.id)!);
+  return positions;
+}
+
+/** Apply a computed position to a node, returning a new node object (or the input if unplaced). */
+export function positionNode(n: AppNode, pos?: NodePosition): AppNode {
+  if (!pos) return n;
+  return { ...n, position: { x: pos.x, y: pos.y }, width: pos.width, style: { width: pos.width } };
 }

@@ -104,6 +104,15 @@ describe("applyEvent by type", () => {
     expect(next.questions).toEqual(g.questions);
   });
 
+  it("question_trace attaches the retrieval internals to the matching question", () => {
+    const trace = { hydePassage: "hypo", searchQueries: ["q1", "q2"], gatherSummary: "found it" };
+    let g = applyEvent(baseGraph(), { type: "question", question: aQuestion });
+    g = applyEvent(g, { type: "question", question: { ...aQuestion, id: "c1-q2" } });
+    g = applyEvent(g, { type: "question_trace", id: "c1-q1", trace });
+    expect(g.questions.find((q) => q.id === "c1-q1")?.trace).toEqual(trace);
+    expect(g.questions.find((q) => q.id === "c1-q2")?.trace).toBeUndefined();
+  });
+
   it("claim_verdict sets verdict and rationale on the matching claim", () => {
     const g = applyEvent(baseGraph(), { type: "claim", claim: aClaim });
     const next = applyEvent(g, {

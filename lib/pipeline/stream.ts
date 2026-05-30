@@ -58,11 +58,12 @@ export async function* streamPipeline(
   for (const q of allQuestions) yield { type: "question_status", id: q.id, status: "searching" };
 
   const tasks = allQuestions.map((q) =>
-    resolveQuestion(claimById.get(q.claimId)!, q, deps).then((evidence) => ({ q, evidence })),
+    resolveQuestion(claimById.get(q.claimId)!, q, deps).then(({ evidence, trace }) => ({ q, evidence, trace })),
   );
 
-  for await (const { q, evidence } of asCompleted(tasks)) {
+  for await (const { q, evidence, trace } of asCompleted(tasks)) {
     yield { type: "question_status", id: q.id, status: "answered" };
+    yield { type: "question_trace", id: q.id, trace };
     for (const e of evidence) yield { type: "evidence", evidence: e };
 
     const bucket = evidenceByClaim.get(q.claimId)!;
@@ -122,6 +123,11 @@ export async function collectGraph(sourceText: string, deps: PipelineDeps): Prom
       case "question_status": {
         const q = graph.questions.find((x) => x.id === ev.id);
         if (q) q.status = ev.status;
+        break;
+      }
+      case "question_trace": {
+        const q = graph.questions.find((x) => x.id === ev.id);
+        if (q) q.trace = ev.trace;
         break;
       }
       case "evidence":

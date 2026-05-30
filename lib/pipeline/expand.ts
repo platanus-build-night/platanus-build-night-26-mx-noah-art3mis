@@ -19,16 +19,22 @@ Rules:
 - Keep the real entities, date, and place from the claim so keyword search still anchors.
 - Plain declarative prose. Output ONLY the passage, no preamble or quotes.`;
 
+/** The HyDE expansion: the seed query sent to retrieval, plus the raw hypothetical (for the trace). */
+export interface ExpandedQuery {
+  seed: string; // question text + hypothetical — what actually steers retrieval
+  hypothetical: string; // the hypothetical passage alone (empty if the model returned nothing)
+}
+
 /** Build the retrieval query for a question: the question text plus a neutral hypothetical answer. */
 export async function expandQuery(
   claim: ClaimItem,
   question: QuestionItem,
   ask: AnthropicCaller,
-): Promise<string> {
+): Promise<ExpandedQuery> {
   const hypothetical = await ask.askText(
     `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nWrite the hypothetical evidence passage.`,
     { system: SYSTEM, maxTokens: 200 },
   );
   const hint = hypothetical.trim();
-  return hint ? `${question.text}\n${hint}` : question.text;
+  return { seed: hint ? `${question.text}\n${hint}` : question.text, hypothetical: hint };
 }

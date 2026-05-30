@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { rationaleFor, dateWindow, resolveQuestion } from "./resolve";
+import { rationaleFor, dateWindow, resolveQuestion, rankAndCapEvidence } from "./resolve";
+import { claimVerdict } from "./verdict";
 import type { ClaimItem, EvidenceItem, QuestionItem, Stance } from "../graph-types";
 import type { RawEvidence } from "../exa";
 import type { ToolLoopOpts } from "../anthropic";
@@ -107,6 +108,40 @@ describe("rationaleFor", () => {
   });
 });
 
+describe("rankAndCapEvidence", () => {
+  it("caps to the limit, keeping the highest-value items first", () => {
+    const ev = [
+      evidence("contextualizes", "blog.test", "low", "secondary"),
+      evidence("supports", "reuters.com", "high", "primary"),
+      evidence("supports", "regional.test", "medium", "secondary"),
+    ];
+    const out = rankAndCapEvidence(ev, 2);
+    expect(out).toHaveLength(2);
+    // The high-reliability primary outranks the low-reliability contextual filler, which is dropped.
+    expect(out.map((e) => e.domain)).toContain("reuters.com");
+    expect(out.map((e) => e.domain)).not.toContain("blog.test");
+  });
+
+  it("returns everything unchanged when already under the limit", () => {
+    const ev = [evidence("supports", "a.com"), evidence("refutes", "b.com")];
+    expect(rankAndCapEvidence(ev, 6)).toHaveLength(2);
+  });
+
+  it("preserves the verdict across the cap by keeping the top deciding support and refute", () => {
+    // 8 deciding supports would crowd out the lone refute on a naive top-N slice, flipping
+    // a Conflicting claim to Supported. The cap must retain the deciding refute.
+    const supports = Array.from({ length: 8 }, (_, i) => evidence("supports", `s${i}.com`, "high", "primary"));
+    const refute = evidence("refutes", "denial.gov", "high", "primary");
+    const full = [...supports, refute];
+    const capped = rankAndCapEvidence(full, 4);
+    expect(capped).toHaveLength(4);
+    expect(capped.some((e) => e.stance === "refutes")).toBe(true);
+    // Verdict on the capped set matches the verdict on the full set.
+    expect(claimVerdict(claim(), capped)).toBe(claimVerdict(claim(), full));
+    expect(claimVerdict(claim(), capped)).toBe("conflicting");
+  });
+});
+
 describe("dateWindow", () => {
   it("returns undefined when no date is known (current open-ended behavior)", () => {
     expect(dateWindow(undefined)).toBeUndefined();
@@ -197,6 +232,17 @@ describe("resolveQuestion (agentic gather loop)", () => {
     const out = await resolveQuestion(claim(), question, d);
     expect(search).toHaveBeenCalledTimes(2);
     // 4 raw results (b.com twice) collapse to 3 unique evidence items.
-    expect(out.map((e) => e.domain).sort()).toEqual(["a.com", "b.com", "c.com"]);
+    expect(out.evidence.map((e) => e.domain).sort()).toEqual(["a.com", "b.com", "c.com"]);
+  });
+
+  it("returns a trace: HyDE hypothetical, the executed queries, and the gather summary", async () => {
+    const d = deps(
+      { ask: { askText: vi.fn().mockResolvedValue("A neutral hypothetical report."), askJSON: vi.fn().mockResolvedValue([]), askWithTools: fakeModel(["q1", "q2"]) } },
+      ["q1", "q2"],
+    );
+    const out = await resolveQuestion(claim(), question, d);
+    expect(out.trace.hydePassage).toBe("A neutral hypothetical report.");
+    expect(out.trace.searchQueries).toEqual(["q1", "q2"]);
+    expect(out.trace.gatherSummary).toBe("done");
   });
 });

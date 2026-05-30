@@ -1,9 +1,10 @@
-import type { ClaimItem, QuestionItem, EvidenceItem, Verdict } from "../graph-types";
+import type { ClaimItem, QuestionItem, EvidenceItem, Verdict, QuestionTrace } from "../graph-types";
 import type { SearchOptions, RawEvidence } from "../exa";
 import type { ToolDef } from "../anthropic";
 import type { PipelineDeps } from "./deps";
 import { classifyEvidence } from "./classify";
 import { expandQuery } from "./expand";
+import { isDeciding } from "./verdict";
 
 // Days of slack around a claim's event date for the retrieval window. The lower bound cuts
 // stale/unrelated older matches; the upper bound keeps the day-of and following-week
@@ -31,6 +32,12 @@ export function dateWindow(date?: string): SearchOptions | undefined {
 const MAX_SEARCHES = 4;
 const MIN_DECIDING = 2;
 
+// The gather agent can emit several searches per turn, so the deduped pile behind one
+// question routinely ran to dozens of sources — an illegible node and a needlessly long
+// classify call. We keep only the most decision-relevant handful per question. This is the
+// per-question analogue of the run-config legibility caps (claims / questions / sources).
+const EVIDENCE_PER_QUESTION_CAP = 6;
+
 const GATHER_SYSTEM = `You are the evidence-gathering stage of VERITRACE, resolving ONE question about ONE claim de novo by searching the open web with the search_evidence tool.
 
 How to search:
@@ -54,6 +61,12 @@ const SEARCH_TOOL: ToolDef = {
   },
 };
 
+/** What resolveQuestion returns: the classified evidence plus the retrieval trace behind it. */
+export interface ResolvedQuestion {
+  evidence: EvidenceItem[];
+  trace: QuestionTrace;
+}
+
 /**
  * Agentic retrieve (de novo) + classify for one question. The model drives a search loop —
  * issuing focused queries until it has ≥2 reliable sources incl. ≥1 primary, or MAX_SEARCHES
@@ -61,31 +74,67 @@ const SEARCH_TOOL: ToolDef = {
  * deterministic classifier over the full set. We seed the loop with a HyDE-expanded query and
  * keep each search inside the claim's date window, so the model's judgment governs only *when
  * to stop searching* while the stated classify + verdict rules stay authoritative.
+ *
+ * Alongside the evidence we return a QuestionTrace — the HyDE seed, the exact queries issued,
+ * and the loop's closing summary — so the UI can surface the normally-hidden retrieval steps.
  */
 export async function resolveQuestion(
   claim: ClaimItem,
   question: QuestionItem,
   deps: PipelineDeps,
-): Promise<EvidenceItem[]> {
+): Promise<ResolvedQuestion> {
   const window = dateWindow(claim.date);
   const collected = new Map<string, RawEvidence>();
+  const searchQueries: string[] = [];
 
   async function onTool(name: string, input: unknown): Promise<unknown> {
     if (name !== "search_evidence") return { error: `unknown tool: ${name}` };
     const query = (input as { query?: string }).query ?? "";
+    searchQueries.push(query); // record the actual executed queries for the trace
     const results = await deps.search(query, window);
     for (const r of results) collected.set(r.url, r); // dedup by url across queries
     return results;
   }
 
   // Seed with a HyDE-expanded query (HerO/HyDE retrieval); the model issues follow-ups.
-  const seed = await expandQuery(claim, question, deps.ask);
-  await deps.ask.askWithTools(
+  const { seed, hypothetical } = await expandQuery(claim, question, deps.ask);
+  const result = await deps.ask.askWithTools(
     `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nA strong first query to run:\n${seed}\n\nGather the evidence that resolves this question.`,
     { system: GATHER_SYSTEM, tools: [SEARCH_TOOL], onTool, maxSteps: MAX_SEARCHES, maxTokens: 600 },
   );
 
-  return classifyEvidence(claim, question, [...collected.values()], deps.ask);
+  const classified = await classifyEvidence(claim, question, [...collected.values()], deps.ask);
+  const evidence = rankAndCapEvidence(classified, EVIDENCE_PER_QUESTION_CAP);
+  const trace: QuestionTrace = { hydePassage: hypothetical, searchQueries, gatherSummary: result.text.trim() };
+  return { evidence, trace };
+}
+
+const RELIABILITY_RANK: Record<EvidenceItem["reliability"], number> = { high: 2, medium: 1, low: 0 };
+
+/** Decision-relevance score: deciding evidence first, then reliability, clear stance, confidence. */
+function evidenceScore(e: EvidenceItem): number {
+  const deciding = isDeciding(e) ? 1 : 0;
+  const clearStance = e.stance === "contextualizes" ? 0 : 1;
+  return deciding * 100 + RELIABILITY_RANK[e.reliability] * 10 + clearStance * 5 + (e.stanceConfidence ?? 0);
+}
+
+/**
+ * Keep only the most decision-relevant `limit` evidence items for one question, so a node
+ * stays legible. Verdict-preserving: the top deciding `supports` and `refutes` are pinned to
+ * the front before the cap, so a lone refutation can't be crowded out by a wall of supports
+ * (which would silently flip a Conflicting claim to Supported). Pure — no side effects.
+ */
+export function rankAndCapEvidence(evidence: EvidenceItem[], limit: number): EvidenceItem[] {
+  if (evidence.length <= limit) return evidence;
+  const ranked = [...evidence].sort((a, b) => evidenceScore(b) - evidenceScore(a));
+
+  const pinned: EvidenceItem[] = [];
+  for (const stance of ["supports", "refutes"] as const) {
+    const best = ranked.find((e) => e.stance === stance && isDeciding(e));
+    if (best) pinned.push(best);
+  }
+  const rest = ranked.filter((e) => !pinned.includes(e));
+  return [...pinned, ...rest].slice(0, limit);
 }
 
 /** A one-line advisory "why" — composed from the deciding evidence, never asserted as truth. */

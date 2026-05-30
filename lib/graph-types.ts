@@ -23,12 +23,25 @@ export interface EvidenceItem {
   stanceConfidence?: number; // 0..1
 }
 
+/**
+ * The retrieval internals behind one resolved question — normally hidden, surfaced only
+ * when the user enables "show pipeline internals". The HyDE seed, the agent's actual
+ * queries, and its closing summary are the steps the evidence cards don't show on their own.
+ */
+export interface QuestionTrace {
+  hydePassage: string; // the neutral hypothetical answer that seeds retrieval (HyDE)
+  searchQueries: string[]; // every query the gather agent issued, in order
+  gatherSummary: string; // the agent's one-line "what I found" at the end of the loop
+}
+
 /** A question the system generates to resolve a Claim (QA-pair = explanation). */
 export interface QuestionItem {
   id: string;
   claimId: string;
   text: string;
   status: QuestionStatus;
+  /** Retrieval internals, attached once the gather loop resolves (see QuestionTrace). */
+  trace?: QuestionTrace;
 }
 
 /** An atomic, decontextualized checkable assertion extracted from the Source text. */

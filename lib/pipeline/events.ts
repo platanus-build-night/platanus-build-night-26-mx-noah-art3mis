@@ -5,6 +5,7 @@ import type {
   EvidenceItem,
   Verdict,
   QuestionStatus,
+  QuestionTrace,
   ClaimTally,
 } from "../graph-types";
 
@@ -16,6 +17,7 @@ export type PipelineEvent =
   | { type: "claim"; claim: ClaimItem }
   | { type: "question"; question: QuestionItem }
   | { type: "question_status"; id: string; status: QuestionStatus }
+  | { type: "question_trace"; id: string; trace: QuestionTrace }
   | { type: "evidence"; evidence: EvidenceItem }
   | { type: "claim_verdict"; id: string; verdict: Verdict; rationale: string }
   | { type: "source_verdict"; verdict: Verdict; tally?: ClaimTally }

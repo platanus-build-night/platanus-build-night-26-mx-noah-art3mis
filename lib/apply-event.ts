@@ -30,6 +30,13 @@ export function applyEvent(graph: FactGraph, ev: PipelineEvent): FactGraph {
           q.id === ev.id ? { ...q, status: ev.status } : q,
         ),
       };
+    case "question_trace":
+      return {
+        ...graph,
+        questions: graph.questions.map((q) =>
+          q.id === ev.id ? { ...q, trace: ev.trace } : q,
+        ),
+      };
     case "evidence":
       return { ...graph, evidence: [...graph.evidence, ev.evidence] };
     case "claim_verdict":

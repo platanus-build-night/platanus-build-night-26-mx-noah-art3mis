@@ -40,6 +40,11 @@ function evidence(questionId: string, stance: Stance): EvidenceItem {
   };
 }
 
+// resolveQuestion now returns { evidence, trace }; wrap evidence arrays for the mocks.
+function resolved(evidence: EvidenceItem[]) {
+  return { evidence, trace: { hydePassage: "h", searchQueries: ["q"], gatherSummary: "s" } };
+}
+
 function claim(id: string, checkable = true): ClaimItem {
   return { id, text: `claim ${id}`, checkable, verdict: null };
 }
@@ -65,7 +70,7 @@ describe("streamPipeline event protocol", () => {
   beforeEach(() => {
     extractClaims.mockResolvedValue([claim("c1")]);
     generateQuestions.mockImplementation(async (c: ClaimItem) => [question(c.id, 1)]);
-    resolveQuestion.mockResolvedValue([evidence("c1-q1", "supports")]);
+    resolveQuestion.mockResolvedValue(resolved([evidence("c1-q1", "supports")]));
   });
 
   it("emits source first and done last", async () => {
@@ -95,15 +100,23 @@ describe("streamPipeline event protocol", () => {
       .map((e) => e.status);
     expect(statuses).toEqual(["searching", "answered"]);
   });
+
+  it("emits a question_trace carrying the retrieval internals for each resolved question", async () => {
+    const events = await drain("post");
+    const trace = events.find(
+      (e): e is Extract<PipelineEvent, { type: "question_trace" }> => e.type === "question_trace",
+    );
+    expect(trace).toMatchObject({ id: "c1-q1", trace: { searchQueries: ["q"], gatherSummary: "s" } });
+  });
 });
 
 describe("streamPipeline verdict resolution", () => {
   it("resolves a claim verdict only after its last question is answered", async () => {
     extractClaims.mockResolvedValue([claim("c1")]);
     generateQuestions.mockResolvedValue([question("c1", 1), question("c1", 2)]);
-    resolveQuestion.mockImplementation(async (_c: ClaimItem, q: QuestionItem) => [
-      evidence(q.id, "supports"),
-    ]);
+    resolveQuestion.mockImplementation(async (_c: ClaimItem, q: QuestionItem) =>
+      resolved([evidence(q.id, "supports")]),
+    );
 
     const events = await drain("post");
     const answeredCount = events.filter(
@@ -134,7 +147,7 @@ describe("collectGraph", () => {
   it("drains the stream into a finished graph with a supported claim and verdict", async () => {
     extractClaims.mockResolvedValue([claim("c1")]);
     generateQuestions.mockResolvedValue([question("c1", 1)]);
-    resolveQuestion.mockResolvedValue([evidence("c1-q1", "supports")]);
+    resolveQuestion.mockResolvedValue(resolved([evidence("c1-q1", "supports")]));
 
     const graph = await collectGraph("post", deps);
     expect(graph.source.text).toBe("post");
@@ -148,9 +161,9 @@ describe("collectGraph", () => {
     // One claim whose two questions return opposing evidence → claim conflicting → source conflicting.
     extractClaims.mockResolvedValue([claim("c1")]);
     generateQuestions.mockResolvedValue([question("c1", 1), question("c1", 2)]);
-    resolveQuestion.mockImplementation(async (_c: ClaimItem, q: QuestionItem) => [
-      evidence(q.id, q.id.endsWith("q1") ? "supports" : "refutes"),
-    ]);
+    resolveQuestion.mockImplementation(async (_c: ClaimItem, q: QuestionItem) =>
+      resolved([evidence(q.id, q.id.endsWith("q1") ? "supports" : "refutes")]),
+    );
 
     const graph = await collectGraph("post", deps);
     expect(graph.claims[0].verdict).toBe("conflicting");
@@ -162,7 +175,7 @@ describe("collectGraph", () => {
     generateQuestions.mockImplementation(async (c: ClaimItem) =>
       c.relevant === false ? [] : [question(c.id, 1)],
     );
-    resolveQuestion.mockResolvedValue([evidence("c1-q1", "supports")]);
+    resolveQuestion.mockResolvedValue(resolved([evidence("c1-q1", "supports")]));
 
     const graph = await collectGraph("post", deps);
     const c1 = graph.claims.find((c) => c.id === "c1")!;
@@ -178,7 +191,7 @@ describe("collectGraph", () => {
     generateQuestions.mockImplementation(async (c: ClaimItem) =>
       c.checkable ? [question(c.id, 1)] : [],
     );
-    resolveQuestion.mockResolvedValue([evidence("c1-q1", "refutes")]);
+    resolveQuestion.mockResolvedValue(resolved([evidence("c1-q1", "refutes")]));
 
     const graph = await collectGraph("post", deps);
     const c1 = graph.claims.find((c) => c.id === "c1")!;
