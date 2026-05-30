@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import Workbench from "@/components/workbench";
 
@@ -14,6 +15,14 @@ export default function Home() {
       />
       <header className="vt-reveal relative flex items-end justify-between gap-4 border-b border-[var(--line)] bg-[var(--bg-2)]/70 px-6 py-3 backdrop-blur">
         <div className="flex items-end gap-3.5">
+          <Image
+            src="/logo_1.png"
+            alt="Veritrace — an evidence graph drawn as a V"
+            width={36}
+            height={36}
+            priority
+            className="mb-[1px] h-9 w-9 shrink-0 select-none"
+          />
           <h1 className="font-display text-[26px] font-semibold leading-none tracking-[-0.02em] text-[var(--ink-1)]">
             Veri<span style={{ color: "var(--accent)" }}>trace</span>
           </h1>
