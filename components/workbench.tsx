@@ -72,7 +72,7 @@ export default function Workbench() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const summarizedRunIdRef = useRef(0);
-  // Lets the manual "Cached" button interrupt an in-flight live run (see runCached).
+  // Tracks the in-flight live run so it can be aborted/superseded if needed.
   const abortRef = useRef<AbortController | null>(null);
 
   // Hydrate settings from localStorage after mount (avoids SSR/client mismatch),
@@ -145,8 +145,8 @@ export default function Workbench() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, runId, graph.source.verdict]);
 
-  // Replay a captured run as a simulated stream — shared by the automatic wifi-death
-  // fallback and the manual "Cached" demo button. The caller owns loading / runId.
+  // Replay a captured run as a simulated stream — used by the automatic wifi-death
+  // fallback when a live run fails. The caller owns loading / runId.
   async function replayCached(trimmed: string, fallback: FactGraph) {
     setCached(true);
     setGraph(emptyGraph(trimmed));
@@ -217,28 +217,6 @@ export default function Workbench() {
     }
   }
 
-  // Manual demo fallback: skip (or interrupt) the live pipeline and replay the captured
-  // run for the current source — the "if the wifi dies on stage, press this" button.
-  // Only meaningful for specimen texts that have a cached run.
-  async function runCached(source: string) {
-    const trimmed = source.trim();
-    const fallback = DEMO_CACHE[trimmed];
-    if (!fallback) return;
-    abortRef.current?.abort(); // bail on any in-flight live run so we don't fight over the graph
-    setError(null);
-    resetReport();
-    setLoading(true);
-    setRunId((n) => n + 1);
-    try {
-      await replayCached(trimmed, fallback);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Whether the current text has a captured run available to replay.
-  const cachedAvailable = text.trim().length > 0 && Boolean(DEMO_CACHE[text.trim()]);
-
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="vt-reveal border-b border-[var(--line)] bg-[var(--bg-2)]/60 px-6 py-3.5">
@@ -301,22 +279,9 @@ export default function Workbench() {
               </button>
             ))}
             <button
-              type="button"
-              onClick={() => runCached(text)}
-              disabled={!cachedAvailable || (loading && cached)}
-              title={
-                cachedAvailable
-                  ? "Replay the captured run for this text — offline-safe demo fallback"
-                  : "No cached run for this text; pick a specimen chip"
-              }
-              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              ↺ Cached
-            </button>
-            <button
               onClick={() => check(text)}
               disabled={loading || text.trim().length === 0}
-              className="inline-flex items-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className="ml-auto inline-flex items-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               style={{
                 background:
                   loading || text.trim().length === 0
