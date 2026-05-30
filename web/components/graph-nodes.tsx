@@ -250,6 +250,9 @@ function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
         style={{ background: stance.color }}
       />
       {IN}
+      {/* Same-rank conflict overlay attaches here, not to the left/right flow handles. */}
+      <Handle type="source" id="conflict-out" position={Position.Top} style={handleStyle} />
+      <Handle type="target" id="conflict-in" position={Position.Bottom} style={handleStyle} />
       <div className="mb-1.5 flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

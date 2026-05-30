@@ -150,6 +150,15 @@ describe("conflictEdges", () => {
     expect(edge.label).toBe("conflicts");
   });
 
+  it("attaches to the evidence card's dedicated conflict handles, not the flow handles", () => {
+    // Evidence cards are leaves in the structural tree, so their left/right handles are
+    // target-only. A conflict edge starts FROM an evidence node, so it must reference the
+    // card's extra source/target handle ids — otherwise React Flow drops it (error #008).
+    const [edge] = conflictEdges(conflictingClaimGraph());
+    expect(edge.sourceHandle).toBe("conflict-out");
+    expect(edge.targetHandle).toBe("conflict-in");
+  });
+
   it("emits no conflict edge when a claim has only one-sided deciding evidence", () => {
     const g = conflictingClaimGraph();
     g.evidence = g.evidence.filter((e) => e.stance === "supports"); // drop the refutation
@@ -191,18 +200,18 @@ describe("graphToFlow evidence wrapping", () => {
     return g;
   }
 
-  it("wraps a question's evidence into two columns instead of one tall stack", () => {
+  it("wraps a question's evidence into four columns instead of one tall stack", () => {
     const { nodes } = graphToFlow(manyEvidenceGraph(4));
     const cols = new Set(
       nodes.filter((n) => n.type === "evidence").map((n) => Math.round(n.position.x)),
     );
-    expect(cols.size).toBe(2);
+    expect(cols.size).toBe(4);
   });
 
-  it("pairs evidence side by side on a shared row to keep the column short", () => {
-    const ev = graphToFlow(manyEvidenceGraph(4)).nodes.filter((n) => n.type === "evidence");
+  it("groups evidence side by side on shared rows to keep the column short", () => {
+    const ev = graphToFlow(manyEvidenceGraph(8)).nodes.filter((n) => n.type === "evidence");
     const rows = new Set(ev.map((n) => Math.round(n.position.y)));
-    // 4 evidence in 2 columns => 2 rows, not 4.
+    // 8 evidence in 4 columns => 2 rows, not 8.
     expect(rows.size).toBe(2);
   });
 

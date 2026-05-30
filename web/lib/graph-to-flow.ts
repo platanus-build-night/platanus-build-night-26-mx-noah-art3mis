@@ -109,6 +109,10 @@ export function conflictEdges(graph: FactGraph): Edge[] {
       id: `conflict-${claimId}`,
       source: a.id,
       target: b.id,
+      // Evidence cards' left/right handles are target-only (leaves of the tree). Conflict
+      // links join siblings in the same rank, so they ride dedicated top/bottom handles.
+      sourceHandle: "conflict-out",
+      targetHandle: "conflict-in",
       type: "smoothstep",
       animated: true,
       label: "conflicts",
@@ -128,9 +132,9 @@ export function conflictEdges(graph: FactGraph): Edge[] {
 // Evidence ("sources") is the populous rank: in a pure LR layout every source under a
 // question stacks into one column, so the graph's height grows with source count and fitView
 // zooms everything down. We wrap each question's evidence into EV_COLS columns — dagre ranks a
-// single virtual "row" node per pair (so vertical spacing stays correct), then we expand each
+// single virtual "row" node per chunk (so vertical spacing stays correct), then we expand each
 // row into its side-by-side cards. Height scales with rows, not raw source count.
-const EV_COLS = 2;
+const EV_COLS = 4;
 const EV_COL_GAP = 24;
 
 function layout(nodes: AppNode[], edges: Edge[]): AppNode[] {
