@@ -169,6 +169,50 @@ describe("conflictEdges", () => {
   });
 });
 
+describe("graphToFlow evidence wrapping", () => {
+  // Many sources under one question used to pile into a single tall column, forcing fitView
+  // to zoom the whole graph down. They should wrap into two columns to bound the height.
+  function manyEvidenceGraph(n: number): FactGraph {
+    const g = graph();
+    g.claims = [{ id: "c1", text: "c1", checkable: true, verdict: "supported" }];
+    g.questions = [{ id: "c1-q1", claimId: "c1", text: "q?", status: "answered" }];
+    g.evidence = Array.from({ length: n }, (_, i) => ({
+      id: `c1-q1-e${i}`,
+      questionId: "c1-q1",
+      title: "t",
+      url: `https://ex${i}.com/x`,
+      domain: `ex${i}.com`,
+      passage: "p",
+      stance: "supports" as const,
+      reliability: "high" as const,
+      sourceType: "primary" as const,
+      stanceConfidence: 0.9,
+    }));
+    return g;
+  }
+
+  it("wraps a question's evidence into two columns instead of one tall stack", () => {
+    const { nodes } = graphToFlow(manyEvidenceGraph(4));
+    const cols = new Set(
+      nodes.filter((n) => n.type === "evidence").map((n) => Math.round(n.position.x)),
+    );
+    expect(cols.size).toBe(2);
+  });
+
+  it("pairs evidence side by side on a shared row to keep the column short", () => {
+    const ev = graphToFlow(manyEvidenceGraph(4)).nodes.filter((n) => n.type === "evidence");
+    const rows = new Set(ev.map((n) => Math.round(n.position.y)));
+    // 4 evidence in 2 columns => 2 rows, not 4.
+    expect(rows.size).toBe(2);
+  });
+
+  it("still emits one question→evidence edge per source when wrapped", () => {
+    const { edges } = graphToFlow(manyEvidenceGraph(5));
+    const evEdges = edges.filter((e) => e.source === "c1-q1" && e.target.startsWith("c1-q1-e"));
+    expect(evEdges).toHaveLength(5);
+  });
+});
+
 describe("graphToFlow degenerate inputs", () => {
   it("handles a source-only graph (no claims yet) — the start of a live build", () => {
     const { nodes, edges } = graphToFlow({

@@ -1,5 +1,6 @@
 import type { ClaimItem, QuestionItem, EvidenceItem, Verdict } from "../graph-types";
-import type { SearchOptions } from "../exa";
+import type { SearchOptions, RawEvidence } from "../exa";
+import type { ToolDef } from "../anthropic";
 import type { PipelineDeps } from "./deps";
 import { classifyEvidence } from "./classify";
 import { expandQuery } from "./expand";
@@ -24,15 +25,67 @@ export function dateWindow(date?: string): SearchOptions | undefined {
   };
 }
 
-/** Retrieve (de novo) + classify the evidence answering one question. */
+// How many model↔search round-trips the gather loop may take before we stop and judge what
+// we have. The model is told to keep searching until it has MIN_DECIDING reliable sources
+// including one primary; this is the hard backstop on that model-driven loop.
+const MAX_SEARCHES = 4;
+const MIN_DECIDING = 2;
+
+const GATHER_SYSTEM = `You are the evidence-gathering stage of VERITRACE, resolving ONE question about ONE claim de novo by searching the open web with the search_evidence tool.
+
+How to search:
+- Issue focused, standalone queries (keep the date / place / actor so keyword search anchors).
+- KEEP SEARCHING until you have at least ${MIN_DECIDING} reliable sources that take a CLEAR stance on the claim, INCLUDING at least one PRIMARY source — the originating report, an official statement, or a news wire — not just re-reporting that echoes the viral claim.
+- Vary the angle across calls: the event itself, whether authorities CONFIRMED or DENIED it, and the originating outlet. Don't repeat a query that already returned good results.
+- Stop once the bar is met, or once reasonable queries are exhausted. Never fabricate — only the tool's results count.
+
+When done, reply with a one-line summary of what you found.`;
+
+const SEARCH_TOOL: ToolDef = {
+  name: "search_evidence",
+  description:
+    "Search the open web for primary evidence answering the question. Returns up to a few sources (domain, title, dated passage). Call repeatedly with different focused queries.",
+  input_schema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "A focused, standalone web query (include date/place/actor)." },
+    },
+    required: ["query"],
+  },
+};
+
+/**
+ * Agentic retrieve (de novo) + classify for one question. The model drives a search loop —
+ * issuing focused queries until it has ≥2 reliable sources incl. ≥1 primary, or MAX_SEARCHES
+ * is hit — and we accumulate every retrieved source (deduped by url), then run the
+ * deterministic classifier over the full set. We seed the loop with a HyDE-expanded query and
+ * keep each search inside the claim's date window, so the model's judgment governs only *when
+ * to stop searching* while the stated classify + verdict rules stay authoritative.
+ */
 export async function resolveQuestion(
   claim: ClaimItem,
   question: QuestionItem,
   deps: PipelineDeps,
 ): Promise<EvidenceItem[]> {
-  const query = await expandQuery(claim, question, deps.ask);
-  const raw = await deps.search(query, dateWindow(claim.date));
-  return classifyEvidence(claim, question, raw, deps.ask);
+  const window = dateWindow(claim.date);
+  const collected = new Map<string, RawEvidence>();
+
+  async function onTool(name: string, input: unknown): Promise<unknown> {
+    if (name !== "search_evidence") return { error: `unknown tool: ${name}` };
+    const query = (input as { query?: string }).query ?? "";
+    const results = await deps.search(query, window);
+    for (const r of results) collected.set(r.url, r); // dedup by url across queries
+    return results;
+  }
+
+  // Seed with a HyDE-expanded query (HerO/HyDE retrieval); the model issues follow-ups.
+  const seed = await expandQuery(claim, question, deps.ask);
+  await deps.ask.askWithTools(
+    `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nA strong first query to run:\n${seed}\n\nGather the evidence that resolves this question.`,
+    { system: GATHER_SYSTEM, tools: [SEARCH_TOOL], onTool, maxSteps: MAX_SEARCHES, maxTokens: 600 },
+  );
+
+  return classifyEvidence(claim, question, [...collected.values()], deps.ask);
 }
 
 /** A one-line advisory "why" — composed from the deciding evidence, never asserted as truth. */
@@ -58,13 +111,18 @@ export function rationaleFor(
   }
   const deciding = pickDeciding(verdict, evidence);
   const domains = uniqueDomains(deciding);
+  // Surface whether we actually reached an originating source — the heart of the de-novo
+  // promise — without letting it gate the verdict (reliability still decides that).
+  const provenance = deciding.some((e) => e.sourceType === "primary")
+    ? "incl. a primary source"
+    : "re-reporting only, no originating source located";
   switch (verdict) {
     case "supported":
-      return `Supported by ${domains}.`;
+      return `Supported by ${domains} — ${provenance}.`;
     case "refuted":
-      return `Refuted by ${domains} (e.g. an official denial or contradicting report).`;
+      return `Refuted by ${domains} — ${provenance}.`;
     case "conflicting":
-      return `Sources conflict — both supporting and refuting primary evidence found (${domains}).`;
+      return `Sources conflict — both supporting and refuting evidence found (${domains}), ${provenance}.`;
     default:
       return "";
   }

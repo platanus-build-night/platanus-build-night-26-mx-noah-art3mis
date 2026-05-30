@@ -125,27 +125,79 @@ export function conflictEdges(graph: FactGraph): Edge[] {
   return edges;
 }
 
+// Evidence ("sources") is the populous rank: in a pure LR layout every source under a
+// question stacks into one column, so the graph's height grows with source count and fitView
+// zooms everything down. We wrap each question's evidence into EV_COLS columns — dagre ranks a
+// single virtual "row" node per pair (so vertical spacing stays correct), then we expand each
+// row into its side-by-side cards. Height scales with rows, not raw source count.
+const EV_COLS = 2;
+const EV_COL_GAP = 24;
+
 function layout(nodes: AppNode[], edges: Edge[]): AppNode[] {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: "LR", nodesep: 26, ranksep: 96, marginx: 48, marginy: 48 });
 
-  for (const n of nodes) {
+  const evidenceIds = new Set(nodes.filter((n) => n.type === "evidence").map((n) => n.id));
+  const nonEvidence = nodes.filter((n) => n.type !== "evidence");
+
+  for (const n of nonEvidence) {
     const s = SIZES[n.type];
     g.setNode(n.id, { width: s.w, height: s.h });
   }
-  for (const e of edges) g.setEdge(e.source, e.target);
+  // Structural edges only — question→evidence is replaced by question→row below.
+  for (const e of edges) {
+    if (evidenceIds.has(e.target)) continue;
+    g.setEdge(e.source, e.target);
+  }
+
+  // Group evidence by question, then chunk into rows of EV_COLS. Each row is one dagre node.
+  const evSize = SIZES.evidence;
+  const rowWidth = evSize.w * EV_COLS + EV_COL_GAP * (EV_COLS - 1);
+  const byQuestion = new Map<string, EvidenceNode[]>();
+  for (const n of nodes) {
+    if (n.type !== "evidence") continue;
+    const qId = n.data.item.questionId;
+    const bucket = byQuestion.get(qId) ?? [];
+    bucket.push(n);
+    byQuestion.set(qId, bucket);
+  }
+  const rows: { id: string; members: EvidenceNode[] }[] = [];
+  for (const [qId, evs] of byQuestion) {
+    for (let i = 0; i < evs.length; i += EV_COLS) {
+      const id = `evrow-${qId}-${i / EV_COLS}`;
+      rows.push({ id, members: evs.slice(i, i + EV_COLS) });
+      g.setNode(id, { width: rowWidth, height: evSize.h });
+      g.setEdge(qId, id);
+    }
+  }
 
   dagre.layout(g);
 
-  return nodes.map((n) => {
+  const positioned = new Map<string, AppNode>();
+  for (const n of nonEvidence) {
     const s = SIZES[n.type];
     const p = g.node(n.id);
-    return {
+    positioned.set(n.id, {
       ...n,
       position: { x: p.x - s.w / 2, y: p.y - s.h / 2 },
       width: s.w,
       style: { width: s.w },
-    };
-  });
+    });
+  }
+  for (const row of rows) {
+    const p = g.node(row.id);
+    const left = p.x - rowWidth / 2;
+    const top = p.y - evSize.h / 2;
+    row.members.forEach((n, i) => {
+      positioned.set(n.id, {
+        ...n,
+        position: { x: left + i * (evSize.w + EV_COL_GAP), y: top },
+        width: evSize.w,
+        style: { width: evSize.w },
+      });
+    });
+  }
+
+  return nodes.map((n) => positioned.get(n.id)!);
 }
