@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { THINKING_BUDGET, type RunConfig } from "./run-config";
+import { THINKING_BUDGET, supportsTemperature, type RunConfig } from "./run-config";
 
 // Per-request Anthropic access. createAnthropic binds the model, temperature, thinking
 // setting, and API key from one RunConfig, so the whole pipeline can fan out many calls
@@ -46,31 +46,36 @@ export function createAnthropic(config: RunConfig): AnthropicCaller {
   }
   const client = new Anthropic({ apiKey });
 
-  // Build the request body for one model turn. Extended thinking and temperature are
-  // mutually exclusive: the API requires temperature unset (i.e. 1) when thinking is
-  // enabled, and max_tokens must exceed the thinking budget, so we add the budget on top
-  // of the per-call cap. `extra` carries per-call additions like `tools`.
+  // Build the request body for one model turn. Two reasons temperature may be omitted:
+  // (1) extended thinking requires it unset (the API forces temperature 1), and max_tokens
+  // must exceed the thinking budget, so we add the budget on top of the per-call cap;
+  // (2) newer models deprecated temperature outright and reject any request carrying it.
+  // `extra` carries per-call additions like `tools`.
   function buildParams(
     messages: Anthropic.MessageParam[],
     opts: AskOpts,
     extra: Partial<Anthropic.MessageCreateParamsNonStreaming> = {},
   ): Anthropic.MessageCreateParamsNonStreaming {
     const maxTokens = opts.maxTokens ?? 1024;
-    const base: Anthropic.MessageCreateParamsNonStreaming = config.thinking
-      ? {
-          model: config.model,
-          max_tokens: THINKING_BUDGET + maxTokens,
-          thinking: { type: "enabled", budget_tokens: THINKING_BUDGET },
-          system: opts.system,
-          messages,
-        }
-      : {
-          model: config.model,
-          max_tokens: maxTokens,
-          temperature: config.temperature,
-          system: opts.system,
-          messages,
-        };
+    if (config.thinking) {
+      return {
+        model: config.model,
+        max_tokens: THINKING_BUDGET + maxTokens,
+        thinking: { type: "enabled", budget_tokens: THINKING_BUDGET },
+        system: opts.system,
+        messages,
+        ...extra,
+      };
+    }
+    const base: Anthropic.MessageCreateParamsNonStreaming = {
+      model: config.model,
+      max_tokens: maxTokens,
+      system: opts.system,
+      messages,
+    };
+    if (supportsTemperature(config.model)) {
+      base.temperature = config.temperature;
+    }
     return { ...base, ...extra };
   }
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import FactGraphCanvas from "./fact-graph";
 import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel";
-import { MODELS } from "@/lib/run-config";
+import { MODELS, supportsTemperature } from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
 import type { FactGraph } from "@/lib/graph-types";
 import type { PipelineEvent } from "@/lib/pipeline/events";
@@ -186,7 +186,7 @@ export default function Workbench() {
               aria-expanded={showSettings}
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
             >
-              ⚙ {MODELS[settings.model]} · temp {settings.thinking ? "1·think" : settings.temperature.toFixed(2)} · ≤{settings.maxClaims} claims
+              ⚙ {MODELS[settings.model]} · temp {!supportsTemperature(settings.model) ? "n/a" : settings.thinking ? "1·think" : settings.temperature.toFixed(2)} · ≤{settings.maxClaims} claims
             </button>
           </div>
           {showSettings && (

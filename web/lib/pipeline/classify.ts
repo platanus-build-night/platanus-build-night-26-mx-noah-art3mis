@@ -58,7 +58,10 @@ export async function classifyEvidence(
 
   const classifications = await ask.askJSON<Classification[]>(
     `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nSources:\n${sources}\n\nClassify each source.`,
-    { system: SYSTEM, maxTokens: 800 },
+    // The gather loop can collect up to ~8 sources; at 800 tokens the pretty-printed
+    // JSON array was being truncated mid-element, which then failed to parse. Size the
+    // cap to comfortably hold one object per collected source.
+    { system: SYSTEM, maxTokens: 2048 },
   );
 
   return raw.map((r, i) => {

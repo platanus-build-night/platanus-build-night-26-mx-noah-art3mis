@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseConfig, DEFAULT_CONFIG, DEFAULT_MODEL } from "./run-config";
+import {
+  parseConfig,
+  supportsTemperature,
+  DEFAULT_CONFIG,
+  DEFAULT_MODEL,
+} from "./run-config";
 
 describe("parseConfig defaults", () => {
   it("returns the default config when input is undefined", () => {
@@ -68,6 +73,17 @@ describe("parseConfig maxClaims", () => {
 
   it("rejects a non-integer maxClaims", () => {
     expect(() => parseConfig({ maxClaims: 3.5 })).toThrow(/claim/i);
+  });
+});
+
+describe("supportsTemperature", () => {
+  it("reports Opus 4.8 as not supporting temperature (the API deprecated it)", () => {
+    expect(supportsTemperature("claude-opus-4-8")).toBe(false);
+  });
+
+  it("reports Sonnet 4.6 and Haiku 4.5 as still supporting temperature", () => {
+    expect(supportsTemperature("claude-sonnet-4-6")).toBe(true);
+    expect(supportsTemperature("claude-haiku-4-5-20251001")).toBe(true);
   });
 });
 

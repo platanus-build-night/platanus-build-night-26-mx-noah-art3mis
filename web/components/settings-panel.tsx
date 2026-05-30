@@ -6,6 +6,7 @@ import {
   DEFAULT_CLAIMS,
   MIN_CLAIMS,
   MAX_CLAIMS,
+  supportsTemperature,
   type ModelId,
 } from "@/lib/run-config";
 
@@ -44,6 +45,12 @@ export function SettingsPanel({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
 
+  // Temperature is inert when extended thinking is on (API forces 1) or the model
+  // deprecated the parameter (API rejects it). modelDeprecatesTemp takes precedence in
+  // the readout because it can't be toggled off the way thinking can.
+  const modelDeprecatesTemp = !supportsTemperature(settings.model);
+  const tempInert = settings.thinking || modelDeprecatesTemp;
+
   return (
     <div className="grid gap-4 rounded-lg border border-[var(--line-2)] bg-[var(--bg)]/60 p-4 sm:grid-cols-2">
       {/* Model */}
@@ -67,7 +74,11 @@ export function SettingsPanel({
         <div className="flex items-baseline justify-between">
           <label className={labelCls}>Temperature</label>
           <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
-            {settings.thinking ? "1.0 · thinking" : settings.temperature.toFixed(2)}
+            {modelDeprecatesTemp
+              ? "n/a · model default"
+              : settings.thinking
+                ? "1.0 · thinking"
+                : settings.temperature.toFixed(2)}
           </span>
         </div>
         <input
@@ -76,14 +87,16 @@ export function SettingsPanel({
           max={1}
           step={0.05}
           value={settings.temperature}
-          disabled={settings.thinking}
+          disabled={tempInert}
           onChange={(e) => set("temperature", Number(e.target.value))}
           className="w-full accent-[var(--accent)] disabled:opacity-40"
         />
         <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          {settings.thinking
-            ? "fixed at 1 while extended thinking is on"
-            : "0 = deterministic · 1 = most varied"}
+          {modelDeprecatesTemp
+            ? "this model samples at its default — temperature is not configurable"
+            : settings.thinking
+              ? "fixed at 1 while extended thinking is on"
+              : "0 = deterministic · 1 = most varied"}
         </span>
       </div>
 

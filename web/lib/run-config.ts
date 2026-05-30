@@ -15,6 +15,17 @@ export type ModelId = keyof typeof MODELS;
 
 export const DEFAULT_MODEL: ModelId = "claude-sonnet-4-6";
 
+// Newer frontier models deprecated the `temperature` parameter — the API rejects any
+// request that includes it. For these we send no temperature and let the model sample
+// at its default; the UI temperature control is inert. Listed explicitly (rather than
+// inferred) so adding a model is a deliberate decision.
+const NO_TEMPERATURE_MODELS = new Set<ModelId>(["claude-opus-4-8"]);
+
+/** Whether the API still accepts a `temperature` parameter for this model. */
+export function supportsTemperature(model: ModelId): boolean {
+  return !NO_TEMPERATURE_MODELS.has(model);
+}
+
 // Extended-thinking budget. The API requires budget_tokens >= 1024 and
 // max_tokens > budget_tokens; createAnthropic adds this on top of the per-call cap.
 export const THINKING_BUDGET = 2048;

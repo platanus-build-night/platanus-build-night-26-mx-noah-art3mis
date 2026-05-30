@@ -94,6 +94,12 @@ describe("createAnthropic — request body", () => {
     expect(args.temperature).toBe(0.4);
     expect(args.thinking).toBeUndefined();
   });
+
+  it("omits temperature for models that deprecated it (e.g. Opus 4.8)", async () => {
+    reply({ type: "text", text: "ok" });
+    await createAnthropic({ ...baseConfig, model: "claude-opus-4-8", temperature: 0.4 }).askText("p");
+    expect(lastRequest().temperature).toBeUndefined();
+  });
 });
 
 describe("createAnthropic — extended thinking", () => {
