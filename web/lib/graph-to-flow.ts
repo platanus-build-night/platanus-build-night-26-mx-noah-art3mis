@@ -19,10 +19,10 @@ export type AppNode = SourceNode | ClaimNode | QuestionNode | EvidenceNode;
 // Approximate card sizes per layer — dagre needs these to space things; React Flow
 // then renders the real DOM. Widths here must match the `width` we set on each node.
 const SIZES: Record<AppNode["type"], { w: number; h: number }> = {
-  source: { w: 380, h: 170 },
-  claim: { w: 320, h: 150 },
-  question: { w: 280, h: 90 },
-  evidence: { w: 320, h: 180 },
+  source: { w: 380, h: 150 },
+  claim: { w: 320, h: 160 },
+  question: { w: 280, h: 80 },
+  evidence: { w: 320, h: 210 },
 };
 
 export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[] } {
@@ -37,8 +37,9 @@ export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[]
       id: `e-${graph.source.id}-${claim.id}`,
       source: graph.source.id,
       target: claim.id,
+      type: "smoothstep",
       animated: false,
-      style: { stroke: "#475569", strokeWidth: 1.5 },
+      style: { stroke: "#2b3645", strokeWidth: 1.5 },
     });
   }
 
@@ -48,22 +49,26 @@ export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[]
       id: `e-${q.claimId}-${q.id}`,
       source: q.claimId,
       target: q.id,
-      style: { stroke: "#475569", strokeWidth: 1.5, strokeDasharray: "4 3" },
+      type: "smoothstep",
+      style: { stroke: "#1f6f78", strokeWidth: 1.5, strokeDasharray: "4 3" },
     });
   }
 
   for (const ev of graph.evidence) {
     nodes.push({ id: ev.id, type: "evidence", position: { x: 0, y: 0 }, data: { item: ev } });
-    const stroke = STANCE_META[ev.stance].stroke;
+    const stroke = STANCE_META[ev.stance].color;
     edges.push({
       id: `e-${ev.questionId}-${ev.id}`,
       source: ev.questionId,
       target: ev.id,
+      type: "smoothstep",
       label: STANCE_META[ev.stance].label,
       animated: true,
       style: { stroke, strokeWidth: 2 },
-      labelStyle: { fill: stroke, fontSize: 11, fontWeight: 600 },
-      labelBgStyle: { fill: "#0b0f17" },
+      labelStyle: { fill: stroke, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" },
+      labelBgStyle: { fill: "#0b0e15", fillOpacity: 0.9 },
+      labelBgPadding: [5, 3],
+      labelBgBorderRadius: 3,
     });
   }
 

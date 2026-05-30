@@ -79,20 +79,28 @@ export default function Workbench() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="border-b border-slate-800 bg-slate-950/60 px-6 py-4">
+      <div className="vt-reveal border-b border-[var(--line)] bg-[var(--bg-2)]/60 px-6 py-3.5">
         <div className="flex flex-col gap-3">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Paste a viral post, tweet, or WhatsApp forward — VERITRACE will decompose it into checkable claims and gather primary sources."
-            rows={2}
-            className="w-full resize-none rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-100 placeholder:text-slate-500 focus:border-sky-500/60 focus:outline-none focus:ring-1 focus:ring-sky-500/40"
-          />
+          <label className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)]">
+            ▣ Paste source text · the artifact under examination
+          </label>
+          <div
+            className="rounded-lg border bg-[var(--bg)] transition-colors focus-within:border-[var(--accent)]"
+            style={{ borderColor: "var(--line-2)" }}
+          >
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="A tweet, WhatsApp forward, or Facebook caption… VERITRACE decomposes it into checkable claims and gathers primary sources, live."
+              rows={2}
+              className="w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-relaxed text-[var(--ink-1)] placeholder:italic placeholder:text-[var(--ink-3)] focus:outline-none"
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-              Try:
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
+              Specimens
             </span>
-            {EXAMPLES.map((ex) => (
+            {EXAMPLES.map((ex, i) => (
               <button
                 key={ex.label}
                 disabled={loading}
@@ -100,24 +108,47 @@ export default function Workbench() {
                   setText(ex.text);
                   check(ex.text);
                 }}
-                className="rounded-full border border-slate-700 bg-slate-800/70 px-3 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-sky-500/50 hover:text-sky-200 disabled:opacity-50"
+                className="group inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[10.5px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)] disabled:opacity-40"
               >
+                <span className="text-[var(--ink-4)] group-hover:text-[var(--accent)]">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
                 {ex.label}
               </button>
             ))}
             <button
               onClick={() => check(text)}
               disabled={loading || text.trim().length === 0}
-              className="ml-auto inline-flex items-center gap-2 rounded-lg bg-sky-500 px-4 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+              className="ml-auto inline-flex items-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                background:
+                  loading || text.trim().length === 0
+                    ? "var(--line-2)"
+                    : "var(--accent)",
+                color: loading || text.trim().length === 0 ? "var(--ink-3)" : "#04181b",
+                boxShadow:
+                  loading || text.trim().length === 0
+                    ? "none"
+                    : "0 0 18px rgba(58,214,230,0.35)",
+              }}
             >
-              {loading && (
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              {loading ? (
+                <>
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-current/40 border-t-current" />
+                  Analyzing
+                </>
+              ) : (
+                <>▸ Run check</>
               )}
-              {loading ? "Checking…" : "Check"}
             </button>
           </div>
           {error && (
-            <p className="text-[12px] text-red-400">⚠ {error}</p>
+            <p
+              className="font-mono text-[11px]"
+              style={{ color: "var(--refutes)" }}
+            >
+              ⚠ {error}
+            </p>
           )}
         </div>
       </div>
@@ -126,9 +157,19 @@ export default function Workbench() {
         <FactGraphCanvas key={runId} graph={graph} />
         {loading && (
           <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2">
-            <div className="flex items-center gap-2.5 rounded-full border border-slate-700 bg-slate-900/90 px-4 py-2 text-[12px] text-slate-200 shadow-xl backdrop-blur">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-500/40 border-t-sky-400" />
-              Decomposing claims, gathering primary sources…
+            <div
+              className="flex items-center gap-2.5 rounded-full border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] shadow-xl backdrop-blur"
+              style={{
+                borderColor: "rgba(58,214,230,0.3)",
+                background: "rgba(11,14,21,0.9)",
+                color: "var(--ink-2)",
+              }}
+            >
+              <span
+                className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-t-transparent"
+                style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+              />
+              Decomposing claims · gathering primary sources
             </div>
           </div>
         )}

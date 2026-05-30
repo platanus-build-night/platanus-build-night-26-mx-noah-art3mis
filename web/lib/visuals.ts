@@ -1,55 +1,64 @@
-// Shared visual vocabulary for verdicts and stances — used by both node cards and edges
-// so the graph reads consistently (green supports, red refutes, amber conflicting/contextualizes).
+// Shared visual vocabulary. Verdict + stance are the only saturated colors in the
+// graph (semantic signal); everything else is forensic grayscale + the cyan machine
+// accent. Colors are raw hex so cards/edges can compose precise fills, glows, and
+// strokes via inline style.
 import type { Verdict, Stance, Reliability } from "./graph-types";
 
-export const VERDICT_META: Record<
-  Verdict,
-  { label: string; fg: string; bg: string; border: string; dot: string }
-> = {
+export interface VerdictStyle {
+  label: string; // editorial verdict word (set in serif by the badge)
+  color: string; // signal hue
+  soft: string; // translucent fill
+  glow: string; // shadow tint
+}
+
+export const VERDICT_META: Record<Verdict, VerdictStyle> = {
   supported: {
     label: "Supported",
-    fg: "text-emerald-300",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/40",
-    dot: "bg-emerald-400",
+    color: "#34d399",
+    soft: "rgba(52, 211, 153, 0.10)",
+    glow: "rgba(52, 211, 153, 0.30)",
   },
   refuted: {
     label: "Refuted",
-    fg: "text-red-300",
-    bg: "bg-red-500/10",
-    border: "border-red-500/40",
-    dot: "bg-red-400",
+    color: "#fb7185",
+    soft: "rgba(251, 113, 133, 0.10)",
+    glow: "rgba(251, 113, 133, 0.32)",
   },
   conflicting: {
     label: "Conflicting",
-    fg: "text-amber-300",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/40",
-    dot: "bg-amber-400",
+    color: "#f5b94a",
+    soft: "rgba(245, 185, 74, 0.10)",
+    glow: "rgba(245, 185, 74, 0.30)",
   },
   nei: {
     label: "Not Enough Evidence",
-    fg: "text-slate-300",
-    bg: "bg-slate-500/10",
-    border: "border-slate-500/40",
-    dot: "bg-slate-400",
+    color: "#8a94a6",
+    soft: "rgba(138, 148, 166, 0.10)",
+    glow: "rgba(138, 148, 166, 0.22)",
   },
 };
 
-export const STANCE_META: Record<
-  Stance,
-  { label: string; stroke: string; fg: string }
-> = {
-  supports: { label: "supports", stroke: "#34d399", fg: "text-emerald-300" },
-  refutes: { label: "refutes", stroke: "#f87171", fg: "text-red-300" },
-  contextualizes: { label: "context", stroke: "#fbbf24", fg: "text-amber-300" },
+export interface StanceStyle {
+  label: string;
+  color: string;
+}
+
+export const STANCE_META: Record<Stance, StanceStyle> = {
+  supports: { label: "supports", color: "#34d399" },
+  refutes: { label: "refutes", color: "#fb7185" },
+  contextualizes: { label: "context", color: "#f5b94a" },
 };
 
-export const RELIABILITY_META: Record<
-  Reliability,
-  { label: string; fg: string }
-> = {
-  high: { label: "high reliability", fg: "text-emerald-300" },
-  medium: { label: "medium reliability", fg: "text-amber-300" },
-  low: { label: "low reliability", fg: "text-red-300" },
+export interface ReliabilityStyle {
+  label: string;
+  color: string;
+  level: 1 | 2 | 3; // bars lit in the meter
+}
+
+export const RELIABILITY_META: Record<Reliability, ReliabilityStyle> = {
+  high: { label: "high", color: "#34d399", level: 3 },
+  medium: { label: "medium", color: "#f5b94a", level: 2 },
+  low: { label: "low", color: "#fb7185", level: 1 },
 };
+
+export const ACCENT = "#3ad6e6"; // phosphor cyan — machine activity

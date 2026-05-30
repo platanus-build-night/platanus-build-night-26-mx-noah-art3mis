@@ -6,105 +6,250 @@ import type {
   EvidenceNode,
 } from "@/lib/graph-to-flow";
 import { VERDICT_META, STANCE_META, RELIABILITY_META } from "@/lib/visuals";
-import type { Verdict } from "@/lib/graph-types";
+import type { Verdict, Reliability } from "@/lib/graph-types";
 
-const IN = <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-slate-600" />;
-const OUT = <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-slate-600" />;
+const handleStyle = { width: 7, height: 7, border: 0, background: "var(--ink-4)" };
+const IN = <Handle type="target" position={Position.Left} style={handleStyle} />;
+const OUT = <Handle type="source" position={Position.Right} style={handleStyle} />;
+
+/* Forensic registration marks — corner ticks on the "exhibit" cards. */
+function Ticks() {
+  const c = "absolute h-2 w-2 border-[var(--ink-4)]";
+  return (
+    <>
+      <span className={`${c} left-1.5 top-1.5 border-l border-t`} />
+      <span className={`${c} right-1.5 top-1.5 border-r border-t`} />
+      <span className={`${c} bottom-1.5 left-1.5 border-b border-l`} />
+      <span className={`${c} bottom-1.5 right-1.5 border-b border-r`} />
+    </>
+  );
+}
+
+function Kicker({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)]">
+      {children}
+    </span>
+  );
+}
 
 function VerdictBadge({ verdict }: { verdict: Verdict | null }) {
   if (!verdict) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-600/50 bg-slate-700/30 px-2 py-0.5 text-[10px] font-medium text-slate-400">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" /> analyzing…
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className="vt-pulse h-1.5 w-1.5 rounded-full"
+          style={{ background: "var(--accent)", color: "var(--accent)" }}
+        />
+        <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
+          analyzing
+        </span>
       </span>
     );
   }
   const m = VERDICT_META[verdict];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${m.border} ${m.bg} ${m.fg}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} /> {m.label}
+    <span
+      className="inline-flex items-center gap-1.5 rounded-[5px] border px-2 py-[3px]"
+      style={{ borderColor: `${m.color}55`, background: m.soft, boxShadow: `0 0 14px ${m.glow}` }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.color }} />
+      <span
+        className="font-display text-[12.5px] italic leading-none"
+        style={{ color: m.color }}
+      >
+        {m.label}
+      </span>
     </span>
   );
 }
 
+function ReliabilityMeter({ reliability }: { reliability: Reliability }) {
+  const r = RELIABILITY_META[reliability];
+  return (
+    <span className="inline-flex items-center gap-1.5" title={`${r.label} reliability`}>
+      <span className="flex items-end gap-[2px]">
+        {[1, 2, 3].map((i) => (
+          <span
+            key={i}
+            className="w-[3px] rounded-[1px]"
+            style={{
+              height: `${3 + i * 2}px`,
+              background: i <= r.level ? r.color : "var(--line-2)",
+            }}
+          />
+        ))}
+      </span>
+      <span
+        className="font-mono text-[9px] uppercase tracking-wider"
+        style={{ color: r.color }}
+      >
+        {r.label}
+      </span>
+    </span>
+  );
+}
+
+const cardShadow = "0 16px 36px -20px rgba(0,0,0,0.85)";
+
+/* The artifact under examination — the human-authored viral post, set in serif. */
 function SourceNodeCard({ data }: NodeProps<SourceNode>) {
   const { item } = data;
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900/95 p-4 shadow-xl backdrop-blur">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Source text</span>
+    <div
+      className="vt-node relative rounded-lg border border-[var(--line-2)] bg-[var(--panel)] px-4 py-3.5"
+      style={{ width: 380, boxShadow: cardShadow }}
+    >
+      <Ticks />
+      <div className="mb-2.5 flex items-center justify-between px-1">
+        <Kicker>Source · Exhibit</Kicker>
         <VerdictBadge verdict={item.verdict} />
       </div>
-      <p className="text-[13px] leading-relaxed text-slate-200">{item.text}</p>
+      <p className="font-display px-1 text-[15px] leading-[1.5] text-[var(--ink-1)]">
+        {item.text}
+      </p>
       {OUT}
     </div>
   );
 }
 
+/* A machine-extracted, decontextualized assertion — body sans; verdict in serif. */
 function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
   const { item } = data;
+  const m = item.verdict ? VERDICT_META[item.verdict] : null;
+  const accent = m?.color ?? "var(--accent)";
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900/95 p-3.5 shadow-xl backdrop-blur">
+    <div
+      className="vt-node relative rounded-lg border bg-[var(--panel)] px-3.5 py-3"
+      style={{
+        width: 320,
+        borderColor: m ? `${m.color}3d` : "var(--line)",
+        boxShadow: m ? `0 0 0 1px ${m.color}14, ${cardShadow}` : cardShadow,
+      }}
+    >
       {IN}
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Claim</span>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Kicker>Claim · {item.id.toUpperCase()}</Kicker>
         <VerdictBadge verdict={item.verdict} />
       </div>
-      <p className="text-[13px] font-medium leading-snug text-slate-100">{item.text}</p>
-      {item.rationale && <p className="mt-2 text-[11px] leading-snug text-slate-400">{item.rationale}</p>}
+      <p className="text-[12.5px] font-medium leading-[1.45] text-[var(--ink-1)]">
+        {item.text}
+      </p>
+      {item.rationale && (
+        <p
+          className="mt-2 border-l-2 pl-2 font-mono text-[10px] leading-[1.5] text-[var(--ink-2)]"
+          style={{ borderColor: `${accent}80` }}
+        >
+          {item.rationale}
+        </p>
+      )}
       {!item.checkable && (
-        <p className="mt-2 text-[10px] font-medium text-slate-500">⚠ not verifiable from text alone</p>
+        <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
+          ⚠ not text-verifiable
+        </p>
       )}
       {OUT}
     </div>
   );
 }
 
+/* The machine's probe — mono, phosphor cyan; shimmer sweep while Exa runs. */
 function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
   const { item } = data;
   const searching = item.status === "searching";
   return (
-    <div className="rounded-lg border border-slate-700/80 bg-slate-800/80 px-3 py-2.5 shadow-lg">
+    <div
+      className="vt-node relative overflow-hidden rounded-md border bg-[var(--panel-2)] px-3 py-2.5"
+      style={{
+        width: 280,
+        borderColor: searching ? "rgba(58,214,230,0.45)" : "var(--line)",
+      }}
+    >
+      {searching && <span className="vt-shimmer pointer-events-none absolute inset-0" />}
       {IN}
-      <div className="mb-1 flex items-center gap-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-sky-400/80">Question</span>
+      <div className="relative mb-1.5 flex items-center gap-2">
+        <span
+          className="font-mono text-[9px] uppercase tracking-[0.2em]"
+          style={{ color: "var(--accent)" }}
+        >
+          ?_ Question
+        </span>
         {searching && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-sky-300">
-            <span className="h-1.5 w-1.5 animate-ping rounded-full bg-sky-400" /> searching…
+          <span
+            className="ml-auto inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider"
+            style={{ color: "var(--accent)" }}
+          >
+            <span className="h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent" />
+            searching
           </span>
         )}
       </div>
-      <p className="text-[12px] leading-snug text-slate-200">{item.text}</p>
+      <p className="relative font-mono text-[11px] leading-[1.5] text-[var(--ink-2)]">
+        {item.text}
+      </p>
       {OUT}
     </div>
   );
 }
 
+/* A filed primary source — passage in serif (the quote), metadata in mono. */
 function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
   const { item } = data;
   const stance = STANCE_META[item.stance];
-  const rel = RELIABILITY_META[item.reliability];
   return (
-    <div className="rounded-xl border bg-slate-900/95 p-3 shadow-xl backdrop-blur" style={{ borderColor: stance.stroke + "66" }}>
+    <div
+      className="vt-node relative rounded-lg border bg-[var(--panel)] py-3 pl-4 pr-3"
+      style={{
+        width: 320,
+        borderColor: `${stance.color}3d`,
+        boxShadow: `0 0 0 1px ${stance.color}14, ${cardShadow}`,
+      }}
+    >
+      <span
+        aria-hidden
+        className="absolute bottom-3 left-0 top-3 w-[3px] rounded-full"
+        style={{ background: stance.color }}
+      />
       {IN}
       <div className="mb-1.5 flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={item.faviconUrl} alt="" className="h-4 w-4 rounded-sm" />
-        <span className="truncate text-[11px] text-slate-400">{item.domain}</span>
-        {item.publishedDate && <span className="ml-auto text-[10px] text-slate-500">{item.publishedDate}</span>}
+        <img
+          src={item.faviconUrl}
+          alt=""
+          className="h-4 w-4 rounded-sm ring-1 ring-[var(--line-2)]"
+        />
+        <span className="truncate font-mono text-[10px] text-[var(--ink-2)]">{item.domain}</span>
+        {item.publishedDate && (
+          <span className="ml-auto font-mono text-[9.5px] tabular-nums text-[var(--ink-3)]">
+            {item.publishedDate}
+          </span>
+        )}
       </div>
-      <a href={item.url} target="_blank" rel="noopener noreferrer" className="block text-[12px] font-semibold leading-snug text-slate-100 hover:text-white hover:underline">
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block text-[12px] font-semibold leading-[1.35] text-[var(--ink-1)] transition-colors hover:text-white hover:underline"
+      >
         {item.title}
       </a>
-      <p className="mt-1.5 line-clamp-3 border-l-2 pl-2 text-[11px] italic leading-snug text-slate-300" style={{ borderColor: stance.stroke }}>
+      <p
+        className="font-display mt-1.5 line-clamp-3 border-l pl-2 text-[11.5px] italic leading-[1.45] text-[var(--ink-2)]"
+        style={{ borderColor: stance.color }}
+      >
         “{item.passage}”
       </p>
-      <div className="mt-2 flex items-center gap-2 text-[10px] font-medium">
-        <span className={stance.fg}>▸ {stance.label}</span>
-        <span className="text-slate-600">·</span>
-        <span className={rel.fg}>{rel.label}</span>
-        <span className="text-slate-600">·</span>
-        <span className="text-slate-400">{item.sourceType}</span>
+      <div className="mt-2.5 flex items-center gap-2.5">
+        <span
+          className="font-mono text-[9.5px] uppercase tracking-wider"
+          style={{ color: stance.color }}
+        >
+          ▸ {stance.label}
+        </span>
+        <ReliabilityMeter reliability={item.reliability} />
+        <span className="ml-auto font-mono text-[9px] uppercase tracking-wider text-[var(--ink-3)]">
+          {item.sourceType}
+        </span>
       </div>
     </div>
   );

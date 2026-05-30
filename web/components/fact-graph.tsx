@@ -16,9 +16,9 @@ import { graphToFlow } from "@/lib/graph-to-flow";
 import type { FactGraph } from "@/lib/graph-types";
 
 const MINIMAP_COLOR: Record<string, string> = {
-  source: "#64748b",
-  claim: "#94a3b8",
-  question: "#38bdf8",
+  source: "#5b6678",
+  claim: "#97a2b4",
+  question: "#3ad6e6",
   evidence: "#34d399",
 };
 
@@ -47,14 +47,19 @@ export default function FactGraphCanvas({ graph }: { graph: FactGraph }) {
       className="bg-transparent"
     >
       <FitOnGrow count={nodes.length} />
-      <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="#1e293b" />
-      <Controls className="!border-slate-700 !bg-slate-800 [&_button]:!border-slate-700 [&_button]:!bg-slate-800 [&_button]:!fill-slate-300" />
+      <Background variant={BackgroundVariant.Cross} gap={36} size={4} color="#18202c" />
+      <Controls
+        showInteractive={false}
+        className="!overflow-hidden !rounded-md !border !border-[var(--line)] !shadow-xl [&_button]:!border-[var(--line)] [&_button]:!bg-[var(--panel-2)] [&_button]:!fill-[var(--ink-2)] [&_button:hover]:!bg-[var(--line)]"
+      />
       <MiniMap
         pannable
         zoomable
-        nodeColor={(n: Node) => MINIMAP_COLOR[n.type ?? "source"] ?? "#64748b"}
-        maskColor="rgba(2,6,23,0.7)"
-        className="!bg-slate-900"
+        nodeColor={(n: Node) => MINIMAP_COLOR[n.type ?? "source"] ?? "#5b6678"}
+        nodeStrokeWidth={0}
+        maskColor="rgba(8,10,15,0.78)"
+        className="!rounded-md !border !border-[var(--line)] !bg-[var(--bg-2)]"
+        style={{ width: 168, height: 112 }}
       />
     </ReactFlow>
   );
