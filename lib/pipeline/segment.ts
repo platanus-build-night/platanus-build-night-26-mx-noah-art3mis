@@ -18,7 +18,9 @@ export const SEGMENT_CEILING = 16;
 
 const SYSTEM = `You are the SEGMENTATION stage of VERITRACE, a fact-checking pipeline in the document-first tradition (SAFE / FacTool / Loki). You receive a raw "source text" — a tweet, WhatsApp forward, Facebook caption, or pasted article, often viral misinformation.
 
-Decompose it into the COMPLETE set of atomic factual utterances it asserts OR presupposes — one indivisible statement each. Be exhaustive and granular:
+FIRST, silently repair the source: viral text is full of typos and phonetic misspellings, especially of proper names, programs, and institutions. Read for INTENT and decompose the intended assertion, not the literal misspelling. Fix evident transcription errors of named entities before segmenting — e.g. "bosla familia" → "Bolsa Família" (Brazil's welfare program), "bolsoonaro" → "Bolsonaro", "reacao adversao" → "reação adversa", "hantavirus" stays. Critically: "trocar X por Y" is Portuguese for "swap/replace X FOR/WITH Y" (exchange one thing for another), NOT "replace someone's family". Only fix spelling/transcription — never change the meaning or invent content the source did not assert.
+
+Then decompose it into the COMPLETE set of atomic factual utterances it asserts OR presupposes — one indivisible statement each. Be exhaustive and granular:
 - Split conjunctions and lists into separate utterances. "they're eating the dogs, the cats, the pets of the people" → "X are eating dogs", "X are eating cats", "X are eating the residents' pets".
 - Split DISJUNCTIONS ("A or B", "A o B", "A ou B") into ONE candidate utterance per alternative — each alternative is a separate claim to be verified independently, since at most one can be true. "Shakira declared support for Lula or Bolsonaro during a show in Rio" → "Shakira declared support for Lula during a show in Rio", "Shakira declared support for Bolsonaro during a show in Rio".
 - Surface presuppositions and entailed background as their own utterances, even if obvious. "the immigrants who arrived in Springfield" presupposes "Springfield is a place", "immigrants arrived in Springfield".

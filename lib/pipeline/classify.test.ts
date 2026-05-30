@@ -97,4 +97,23 @@ describe("classifyEvidence", () => {
       stanceConfidence: 0.3,
     });
   });
+
+  it("threads each source's published date and the claim's event date into the prompt", async () => {
+    // The classifier can only reason that a source predating the event can't refute it if it
+    // actually SEES both dates. Regression guard for the "alive on the 18th refutes death on
+    // the 22nd" bug: the source date and the claim's event date must reach the model.
+    askJSON.mockResolvedValue([
+      { stance: "contextualizes", reliability: "high", sourceType: "primary", stanceConfidence: 0.4 },
+    ]);
+    const datedClaim: ClaimItem = { ...claim, date: "2026-02-22" };
+    await classifyEvidence(
+      datedClaim,
+      question,
+      [raw({ publishedDate: "2026-02-18", title: "El Mencho seen alive" })],
+      ask,
+    );
+    const prompt = askJSON.mock.calls[0][0] as string;
+    expect(prompt).toContain("2026-02-18"); // source publication date
+    expect(prompt).toContain("2026-02-22"); // claim event date
+  });
 });
