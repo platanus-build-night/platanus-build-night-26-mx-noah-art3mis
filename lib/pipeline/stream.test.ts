@@ -22,7 +22,7 @@ import { streamPipeline, collectGraph } from "./stream";
 import type { PipelineDeps } from "./deps";
 
 // The leaf stages are mocked, so deps is inert here — a placeholder satisfies the type.
-const deps = { ask: { askJSON: vi.fn(), askText: vi.fn(), askWithTools: vi.fn() }, search: vi.fn(), maxClaims: 5 } as PipelineDeps;
+const deps = { ask: { askJSON: vi.fn(), askText: vi.fn(), askWithTools: vi.fn() }, search: vi.fn(), maxClaims: 5, maxQuestions: 2 } as PipelineDeps;
 
 let evCounter = 0;
 function evidence(questionId: string, stance: Stance): EvidenceItem {

@@ -1,4 +1,5 @@
 import Exa from "exa-js";
+import { DEFAULT_SOURCES } from "./run-config";
 
 // Fact-check outlets are EXCLUDED from every retrieval. This is the mechanical
 // enforcement of VERITRACE's de-novo honesty bar: the pipeline must reach its own
@@ -40,11 +41,13 @@ export interface SearchOptions {
  * The returned function does one search per Question node. Direct call — not Claude
  * function-calling — because our pipeline is deterministic: we decide when to search.
  * `excludeDomains` enforces de-novo retrieval. `type: "auto"` is the balanced ~1s default;
- * numResults caps the graph for legibility. We omit `maxAgeHours` so cache is served
- * (livecrawl as fallback), which is what makes rehearsed demo chips return fast on stage.
+ * numResults (the per-run source cap) bounds the graph for legibility. We omit `maxAgeHours`
+ * so cache is served (livecrawl as fallback), which is what makes rehearsed demo chips return
+ * fast on stage.
  */
 export function createExaSearch(
   exaKey?: string,
+  numResults: number = DEFAULT_SOURCES,
 ): (query: string, opts?: SearchOptions) => Promise<RawEvidence[]> {
   const apiKey = exaKey || process.env.EXA_API_KEY;
   if (!apiKey) throw new Error("EXA_API_KEY is not set (and no key was provided)");
@@ -56,7 +59,7 @@ export function createExaSearch(
   ): Promise<RawEvidence[]> {
     const { results } = await client.search(query, {
       type: "auto",
-      numResults: 2,
+      numResults,
       excludeDomains: FACT_CHECKERS,
       // A claim-date window (when known) keeps stale pre-event matches and far-future
       // re-litigation out, while still admitting the day-of/after primary reporting.

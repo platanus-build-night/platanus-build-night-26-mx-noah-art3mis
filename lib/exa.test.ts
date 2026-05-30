@@ -47,6 +47,12 @@ describe("createExaSearch — de-novo retrieval", () => {
     expect(opts.contents.text.maxCharacters).toBe(800);
   });
 
+  it("forwards a per-run source cap to Exa numResults", async () => {
+    withResults([]);
+    await createExaSearch("user-key", 4)("did X happen?");
+    expect(searchMock.mock.calls[0][1].numResults).toBe(4);
+  });
+
   it("passes the question text through as the query", async () => {
     withResults([]);
     await search()("did X happen?");

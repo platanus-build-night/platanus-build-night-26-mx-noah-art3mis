@@ -2,22 +2,23 @@ import type { AnthropicCaller } from "../anthropic";
 import type { ClaimItem, QuestionItem } from "../graph-types";
 import { isSearchable } from "./claim-status";
 
-// Legibility cap (PLAN.md): ~2 questions per claim.
-const MAX_QUESTIONS = 2;
-
-const SYSTEM = `You are the question-generation stage of VERITRACE. Given one atomic claim, produce the specific questions a professional fact-checker would ask to resolve it — the questions whose answers (from primary sources) would settle whether the claim is Supported, Refuted, or Conflicting. The QA-pair (question → answering evidence) IS the explanation shown to the user, per AVeriTeC.
+// The per-claim question cap is a per-run legibility setting (RunConfig.maxQuestions); the
+// system prompt is templated with it so the model and the hard slice below agree.
+const systemPrompt = (maxQuestions: number) =>
+  `You are the question-generation stage of VERITRACE. Given one atomic claim, produce the specific questions a professional fact-checker would ask to resolve it — the questions whose answers (from primary sources) would settle whether the claim is Supported, Refuted, or Conflicting. The QA-pair (question → answering evidence) IS the explanation shown to the user, per AVeriTeC.
 
 Rules:
-- At most ${MAX_QUESTIONS} questions, each independently searchable on the open web (include the date/place/actor from the claim so the question stands alone).
+- At most ${maxQuestions} question${maxQuestions === 1 ? "" : "s"}, each independently searchable on the open web (include the date/place/actor from the claim so the question stands alone).
 - Prefer questions that primary sources (news wires, official statements, registries) can answer. For a claim that could be an official-denial type, ask both the existence question AND whether authorities confirmed or denied it.
 - Plain, neutral phrasing. No leading questions.
 
 Respond with ONLY a JSON array of strings, no prose:
-["<question 1>", "<question 2>"]`;
+["<question 1>"${maxQuestions === 1 ? "" : ', "<question 2>"'}]`;
 
 export async function generateQuestions(
   claim: ClaimItem,
   ask: AnthropicCaller,
+  maxQuestions: number,
 ): Promise<QuestionItem[]> {
   // Only searchable claims get questions: relevance-dropped (trivial background),
   // unverifiable-by-text, and non-checkworthy (opinion) claims all skip retrieval.
@@ -25,10 +26,10 @@ export async function generateQuestions(
 
   const questions = await ask.askJSON<string[]>(
     `Claim: "${claim.text}"\n\nGenerate the resolving questions.`,
-    { system: SYSTEM, maxTokens: 600 },
+    { system: systemPrompt(maxQuestions), maxTokens: 600 },
   );
 
-  return questions.slice(0, MAX_QUESTIONS).map((text, i) => ({
+  return questions.slice(0, maxQuestions).map((text, i) => ({
     id: `${claim.id}-q${i + 1}`,
     claimId: claim.id,
     text,

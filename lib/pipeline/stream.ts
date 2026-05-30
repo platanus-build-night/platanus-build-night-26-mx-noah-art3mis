@@ -26,7 +26,9 @@ export async function* streamPipeline(
   const claimById = new Map(claims.map((c) => [c.id, c]));
 
   // 2. Ask questions for every claim (parallel), then emit them.
-  const questionLists = await Promise.all(claims.map((c) => generateQuestions(c, deps.ask)));
+  const questionLists = await Promise.all(
+    claims.map((c) => generateQuestions(c, deps.ask, deps.maxQuestions)),
+  );
   const allQuestions: QuestionItem[] = questionLists.flat();
   for (const q of allQuestions) yield { type: "question", question: q };
 

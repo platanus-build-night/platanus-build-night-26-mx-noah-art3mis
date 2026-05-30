@@ -90,11 +90,33 @@ describe("parseConfig maxQuestions", () => {
   });
 
   it("rejects maxQuestions above the maximum", () => {
-    expect(() => parseConfig({ maxQuestions: 3 })).toThrow(/question/i);
+    expect(() => parseConfig({ maxQuestions: 11 })).toThrow(/question/i);
   });
 
   it("rejects a non-integer maxQuestions", () => {
     expect(() => parseConfig({ maxQuestions: 1.5 })).toThrow(/question/i);
+  });
+});
+
+describe("parseConfig maxSources", () => {
+  it("defaults maxSources to 2", () => {
+    expect(parseConfig({}).maxSources).toBe(2);
+  });
+
+  it("accepts an in-range integer maxSources", () => {
+    expect(parseConfig({ maxSources: 4 }).maxSources).toBe(4);
+  });
+
+  it("rejects maxSources below the minimum", () => {
+    expect(() => parseConfig({ maxSources: 0 })).toThrow(/source/i);
+  });
+
+  it("rejects maxSources above the maximum", () => {
+    expect(() => parseConfig({ maxSources: 11 })).toThrow(/source/i);
+  });
+
+  it("rejects a non-integer maxSources", () => {
+    expect(() => parseConfig({ maxSources: 2.5 })).toThrow(/source/i);
   });
 });
 

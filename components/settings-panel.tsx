@@ -6,6 +6,12 @@ import {
   DEFAULT_CLAIMS,
   MIN_CLAIMS,
   MAX_CLAIMS,
+  DEFAULT_QUESTIONS,
+  MIN_QUESTIONS,
+  MAX_QUESTIONS,
+  DEFAULT_SOURCES,
+  MIN_SOURCES,
+  MAX_SOURCES,
   supportsTemperature,
   type ModelId,
 } from "@/lib/run-config";
@@ -17,6 +23,8 @@ export interface Settings {
   temperature: number;
   thinking: boolean;
   maxClaims: number;
+  maxQuestions: number;
+  maxSources: number;
   anthropicKey: string;
   exaKey: string;
 }
@@ -26,6 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
   temperature: 0,
   thinking: false,
   maxClaims: DEFAULT_CLAIMS,
+  maxQuestions: DEFAULT_QUESTIONS,
+  maxSources: DEFAULT_SOURCES,
   anthropicKey: "",
   exaKey: "",
 };
@@ -52,7 +62,7 @@ export function SettingsPanel({
   const tempInert = settings.thinking || modelDeprecatesTemp;
 
   return (
-    <div className="grid gap-4 rounded-lg border border-[var(--line-2)] bg-[var(--bg)]/60 p-4 sm:grid-cols-2">
+    <div className="grid gap-4 rounded-lg border border-[var(--line-2)] bg-[var(--bg)]/60 p-4 sm:grid-cols-3">
       {/* Model */}
       <div className="flex flex-col gap-1.5">
         <label className={labelCls}>Model</label>
@@ -122,6 +132,50 @@ export function SettingsPanel({
         </span>
       </div>
 
+      {/* Questions per claim — the second graph multiplier (claims × questions × sources) */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between">
+          <label className={labelCls}>Questions per claim</label>
+          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+            up to {settings.maxQuestions}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={MIN_QUESTIONS}
+          max={MAX_QUESTIONS}
+          step={1}
+          value={settings.maxQuestions}
+          onChange={(e) => set("maxQuestions", Number(e.target.value))}
+          className="w-full accent-[var(--accent)]"
+        />
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          resolving questions each claim fans out into
+        </span>
+      </div>
+
+      {/* Sources per search — the third graph multiplier (Exa numResults) */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between">
+          <label className={labelCls}>Sources per search</label>
+          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+            up to {settings.maxSources}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={MIN_SOURCES}
+          max={MAX_SOURCES}
+          step={1}
+          value={settings.maxSources}
+          onChange={(e) => set("maxSources", Number(e.target.value))}
+          className="w-full accent-[var(--accent)]"
+        />
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          evidence cards retrieved per query · the populous rank
+        </span>
+      </div>
+
       {/* Extended thinking */}
       <div className="flex flex-col gap-1.5">
         <label className={labelCls}>Extended thinking</label>
@@ -141,7 +195,7 @@ export function SettingsPanel({
       </div>
 
       {/* API keys */}
-      <div className="flex flex-col gap-1.5 sm:col-span-2">
+      <div className="flex flex-col gap-1.5 sm:col-span-3">
         <label className={labelCls}>Your API keys · optional, stored in this browser</label>
         <div className="grid gap-2 sm:grid-cols-2">
           <input

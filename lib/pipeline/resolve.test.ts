@@ -148,6 +148,7 @@ describe("resolveQuestion (agentic gather loop)", () => {
       },
       search: vi.fn().mockResolvedValue([]),
       maxClaims: 5,
+      maxQuestions: 2,
       ...over,
     };
   }

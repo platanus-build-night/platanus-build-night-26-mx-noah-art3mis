@@ -41,8 +41,14 @@ export const DEFAULT_CLAIMS = 5;
 // Resolving questions generated per checkable claim. Same legibility logic as claims —
 // the graph is claims × questions × sources — so it is capped low and surfaced in the UI.
 export const MIN_QUESTIONS = 1;
-export const MAX_QUESTIONS = 2;
+export const MAX_QUESTIONS = 10;
 export const DEFAULT_QUESTIONS = 2;
+
+// Sources retrieved per web search (Exa numResults). The third multiplier of the graph's
+// size; the gather loop may issue several searches, so the evidence rank scales with this.
+export const MIN_SOURCES = 1;
+export const MAX_SOURCES = 10;
+export const DEFAULT_SOURCES = 2;
 
 export interface RunConfig {
   model: ModelId;
@@ -53,6 +59,8 @@ export interface RunConfig {
   maxClaims: number;
   /** Resolving questions per checkable claim (MIN_QUESTIONS..MAX_QUESTIONS) — a legibility cap. */
   maxQuestions: number;
+  /** Sources retrieved per search (MIN_SOURCES..MAX_SOURCES) — Exa numResults, a legibility cap. */
+  maxSources: number;
   /** User-supplied key; blank ⇒ the server falls back to its ANTHROPIC_API_KEY env. */
   anthropicKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
@@ -67,6 +75,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   thinking: false,
   maxClaims: DEFAULT_CLAIMS,
   maxQuestions: DEFAULT_QUESTIONS,
+  maxSources: DEFAULT_SOURCES,
 };
 
 function isModelId(value: unknown): value is ModelId {
@@ -125,12 +134,22 @@ export function parseConfig(input: unknown): RunConfig {
     maxQuestions = q;
   }
 
+  let maxSources = DEFAULT_CONFIG.maxSources;
+  if (raw.maxSources !== undefined) {
+    const s = raw.maxSources;
+    if (typeof s !== "number" || !Number.isInteger(s) || s < MIN_SOURCES || s > MAX_SOURCES) {
+      throw new Error(`maxSources must be an integer between ${MIN_SOURCES} and ${MAX_SOURCES}`);
+    }
+    maxSources = s;
+  }
+
   return {
     model,
     temperature,
     thinking: Boolean(raw.thinking),
     maxClaims,
     maxQuestions,
+    maxSources,
     anthropicKey: cleanKey(raw.anthropicKey),
     exaKey: cleanKey(raw.exaKey),
   };

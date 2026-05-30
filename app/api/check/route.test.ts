@@ -115,9 +115,9 @@ describe("POST /api/check streaming", () => {
     );
   });
 
-  it("forwards a user-supplied Exa key to the search factory", async () => {
-    await POST(post(JSON.stringify({ text: "hi", config: { exaKey: "exa-user" } })));
-    expect(createExaSearch).toHaveBeenCalledWith("exa-user");
+  it("forwards a user-supplied Exa key and the source cap to the search factory", async () => {
+    await POST(post(JSON.stringify({ text: "hi", config: { exaKey: "exa-user", maxSources: 4 } })));
+    expect(createExaSearch).toHaveBeenCalledWith("exa-user", 4);
   });
 
   it("converts a mid-stream pipeline failure into a terminal error event, not a crash", async () => {

@@ -1,6 +1,6 @@
 # Deploying VERITRACE
 
-The Next.js app lives in **`web/`** (not the repo root). The build-night org repo can't be connected to Vercel, so we mirror to a personal repo and deploy from there. Commits stay mirrored to the org repo for judging.
+The Next.js app lives at the **repo root**. The build-night org repo can't be connected to Vercel, so we mirror to a personal repo and deploy from there. Commits stay mirrored to the org repo for judging.
 
 ## 1. Create a personal repo (one time)
 
@@ -29,13 +29,13 @@ Verify with `git remote -v` — `origin (push)` should list two URLs.
 
 In the Vercel dashboard → **Add New… → Project** → import `noah-art3mis/veritrace`, then:
 
-- **Root Directory:** `web`  ← critical (the app is in the subdirectory)
+- **Root Directory:** leave as the repo root (`./`) — the app is no longer in a subdirectory
 - **Framework Preset:** Next.js (auto-detected)
 - **Build / Install / Output:** leave as defaults
 
 ### Environment variables (Production + Preview)
 
-Add these two (values are in `web/.env.local`, which is gitignored and NOT in the repo):
+Add these two (values are in `.env.local`, which is gitignored and NOT in the repo):
 
 | Name                | Where it's used            |
 | ------------------- | -------------------------- |
@@ -51,5 +51,5 @@ Click **Deploy**. After the first deploy, every `git push origin main` auto-depl
 ## Notes
 
 - The `/api/check` route sets `maxDuration = 60`. On the Vercel Hobby plan this is allowed; the pipeline runs ~10–13s. Because the response **streams**, the graph starts building immediately.
-- If live retrieval ever times out or fails on stage, the workbench automatically replays a **cached run** for the three demo chips (see `web/lib/demo-cache.ts`) — the demo still works fully offline.
+- If live retrieval ever times out or fails on stage, the workbench automatically replays a **cached run** for the three demo chips (see `lib/demo-cache.ts`) — the demo still works fully offline.
 - Rehearsing the demo chips **warms Exa's cache**, so on stage they return as fast cache hits.

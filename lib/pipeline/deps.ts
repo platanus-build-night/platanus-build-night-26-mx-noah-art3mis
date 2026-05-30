@@ -10,4 +10,6 @@ export interface PipelineDeps {
   search: (query: string, opts?: SearchOptions) => Promise<RawEvidence[]>;
   /** Legibility cap on extracted claims for this run (from RunConfig.maxClaims). */
   maxClaims: number;
+  /** Legibility cap on resolving questions per claim (from RunConfig.maxQuestions). */
+  maxQuestions: number;
 }
