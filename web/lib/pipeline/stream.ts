@@ -1,5 +1,6 @@
 import type { FactGraph, ClaimItem, QuestionItem, EvidenceItem, Verdict } from "../graph-types";
 import type { PipelineEvent } from "./events";
+import type { PipelineDeps } from "./deps";
 import { extractClaims } from "./extract";
 import { generateQuestions } from "./questions";
 import { resolveQuestion, rationaleFor } from "./resolve";
@@ -12,16 +13,19 @@ import { claimVerdict, sourceVerdict } from "./verdict";
  * moment it lands. A claim's verdict resolves as soon as its last question answers;
  * the source-level verdict is the finale.
  */
-export async function* streamPipeline(sourceText: string): AsyncGenerator<PipelineEvent> {
+export async function* streamPipeline(
+  sourceText: string,
+  deps: PipelineDeps,
+): AsyncGenerator<PipelineEvent> {
   yield { type: "source", source: { id: "src", text: sourceText, verdict: null } };
 
   // 1. Decompose.
-  const claims = await extractClaims(sourceText);
+  const claims = await extractClaims(sourceText, deps.ask);
   for (const claim of claims) yield { type: "claim", claim };
   const claimById = new Map(claims.map((c) => [c.id, c]));
 
   // 2. Ask questions for every claim (parallel), then emit them.
-  const questionLists = await Promise.all(claims.map((c) => generateQuestions(c)));
+  const questionLists = await Promise.all(claims.map((c) => generateQuestions(c, deps.ask)));
   const allQuestions: QuestionItem[] = questionLists.flat();
   for (const q of allQuestions) yield { type: "question", question: q };
 
@@ -48,7 +52,7 @@ export async function* streamPipeline(sourceText: string): AsyncGenerator<Pipeli
   for (const q of allQuestions) yield { type: "question_status", id: q.id, status: "searching" };
 
   const tasks = allQuestions.map((q) =>
-    resolveQuestion(claimById.get(q.claimId)!, q).then((evidence) => ({ q, evidence })),
+    resolveQuestion(claimById.get(q.claimId)!, q, deps).then((evidence) => ({ q, evidence })),
   );
 
   for await (const { q, evidence } of asCompleted(tasks)) {
@@ -84,7 +88,7 @@ async function* asCompleted<T>(promises: Promise<T>[]): AsyncGenerator<T> {
 }
 
 /** Drain the stream into a finished graph — the non-streaming path (tests / cache priming). */
-export async function collectGraph(sourceText: string): Promise<FactGraph> {
+export async function collectGraph(sourceText: string, deps: PipelineDeps): Promise<FactGraph> {
   const graph: FactGraph = {
     source: { id: "src", text: sourceText, verdict: null },
     claims: [],
@@ -93,7 +97,7 @@ export async function collectGraph(sourceText: string): Promise<FactGraph> {
   };
   const claimMap = new Map<string, ClaimItem>();
 
-  for await (const ev of streamPipeline(sourceText)) {
+  for await (const ev of streamPipeline(sourceText, deps)) {
     switch (ev.type) {
       case "source":
         graph.source = ev.source;

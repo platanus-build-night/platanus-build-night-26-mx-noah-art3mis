@@ -1,4 +1,4 @@
-import { askJSON } from "../anthropic";
+import type { AnthropicCaller } from "../anthropic";
 import type { ClaimItem } from "../graph-types";
 
 // Legibility cap (PLAN.md): a graph that reads in 5 seconds on a slide.
@@ -21,8 +21,11 @@ Rules:
 Respond with ONLY a JSON array, no prose:
 [{ "text": "<decontextualized English claim>", "original": "<the fragment as it appeared in the source>", "checkable": true|false }]`;
 
-export async function extractClaims(sourceText: string): Promise<ClaimItem[]> {
-  const claims = await askJSON<ExtractedClaim[]>(
+export async function extractClaims(
+  sourceText: string,
+  ask: AnthropicCaller,
+): Promise<ClaimItem[]> {
+  const claims = await ask.askJSON<ExtractedClaim[]>(
     `Source text:\n"""\n${sourceText}\n"""\n\nExtract the atomic claims as instructed.`,
     { system: SYSTEM, maxTokens: 1500 },
   );

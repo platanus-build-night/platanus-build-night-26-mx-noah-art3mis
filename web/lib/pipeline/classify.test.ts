@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { AnthropicCaller } from "../anthropic";
 
-const { askJSON } = vi.hoisted(() => ({ askJSON: vi.fn() }));
-vi.mock("../anthropic", () => ({ askJSON }));
+const askJSON = vi.fn();
+const ask: AnthropicCaller = { askJSON, askText: vi.fn() };
 
 import { classifyEvidence } from "./classify";
 import type { ClaimItem, QuestionItem } from "../graph-types";
@@ -26,7 +27,7 @@ beforeEach(() => askJSON.mockReset());
 
 describe("classifyEvidence", () => {
   it("returns nothing and skips the model when there is no raw evidence", async () => {
-    const out = await classifyEvidence(claim, question, []);
+    const out = await classifyEvidence(claim, question, [], ask);
     expect(out).toEqual([]);
     expect(askJSON).not.toHaveBeenCalled();
   });
@@ -39,7 +40,7 @@ describe("classifyEvidence", () => {
     const out = await classifyEvidence(claim, question, [
       raw({ domain: "a.com" }),
       raw({ domain: "b.com" }),
-    ]);
+    ], ask);
     expect(out[0]).toMatchObject({ domain: "a.com", stance: "supports", reliability: "high" });
     expect(out[1]).toMatchObject({ domain: "b.com", stance: "refutes", reliability: "medium" });
   });
@@ -49,7 +50,7 @@ describe("classifyEvidence", () => {
       { stance: "supports", reliability: "high", sourceType: "primary", stanceConfidence: 0.9 },
       { stance: "supports", reliability: "high", sourceType: "primary", stanceConfidence: 0.9 },
     ]);
-    const out = await classifyEvidence(claim, question, [raw(), raw()]);
+    const out = await classifyEvidence(claim, question, [raw(), raw()], ask);
     expect(out.map((e) => e.id)).toEqual(["c1-q1-e1", "c1-q1-e2"]);
   });
 
@@ -59,7 +60,7 @@ describe("classifyEvidence", () => {
     ]);
     const [e] = await classifyEvidence(claim, question, [
       raw({ title: "Headline", url: "https://x.com/a", publishedDate: "2026-01-01" }),
-    ]);
+    ], ask);
     expect(e).toMatchObject({
       questionId: "c1-q1",
       title: "Headline",
@@ -74,7 +75,7 @@ describe("classifyEvidence", () => {
     askJSON.mockResolvedValue([
       { stance: "supports", reliability: "high", sourceType: "primary", stanceConfidence: 0.9 },
     ]);
-    const out = await classifyEvidence(claim, question, [raw(), raw()]);
+    const out = await classifyEvidence(claim, question, [raw(), raw()], ask);
     expect(out[1]).toMatchObject({
       stance: "contextualizes",
       reliability: "low",

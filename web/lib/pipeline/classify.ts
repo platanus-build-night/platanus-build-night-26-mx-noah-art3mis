@@ -1,4 +1,4 @@
-import { askJSON } from "../anthropic";
+import type { AnthropicCaller } from "../anthropic";
 import type {
   ClaimItem,
   QuestionItem,
@@ -33,6 +33,7 @@ export async function classifyEvidence(
   claim: ClaimItem,
   question: QuestionItem,
   raw: RawEvidence[],
+  ask: AnthropicCaller,
 ): Promise<EvidenceItem[]> {
   if (raw.length === 0) return [];
 
@@ -43,7 +44,7 @@ export async function classifyEvidence(
     )
     .join("\n\n");
 
-  const classifications = await askJSON<Classification[]>(
+  const classifications = await ask.askJSON<Classification[]>(
     `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nSources:\n${sources}\n\nClassify each source.`,
     { system: SYSTEM, maxTokens: 800 },
   );

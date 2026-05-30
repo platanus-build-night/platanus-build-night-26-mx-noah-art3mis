@@ -1,52 +1,63 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { THINKING_BUDGET, type RunConfig } from "./run-config";
 
-// Server-side Anthropic client. ANTHROPIC_API_KEY is read from the environment
-// by the SDK automatically; we construct lazily so importing this module in a
-// non-configured context (e.g. the build step) doesn't throw.
-let client: Anthropic | null = null;
-function anthropic(): Anthropic {
-  if (!client) {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not set");
-    }
-    client = new Anthropic();
+// Per-request Anthropic access. createAnthropic binds the model, temperature, thinking
+// setting, and API key from one RunConfig, so the whole pipeline can fan out many calls
+// that all share the same run configuration without touching module globals.
+
+export interface AskOpts {
+  system?: string;
+  maxTokens?: number;
+}
+
+export interface AnthropicCaller {
+  /** Send a single prompt and return the concatenated text of the response. */
+  askText(prompt: string, opts?: AskOpts): Promise<string>;
+  /** Ask for JSON and parse it (tolerating fences / surrounding prose). */
+  askJSON<T>(prompt: string, opts?: AskOpts): Promise<T>;
+}
+
+export function createAnthropic(config: RunConfig): AnthropicCaller {
+  const apiKey = config.anthropicKey || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set (and no key was provided)");
   }
-  return client;
-}
+  const client = new Anthropic({ apiKey });
 
-// Sonnet is the speed/quality balance for the per-claim reasoning calls; override
-// via env if a run needs more (Opus) or less (Haiku). The whole pipeline fans out
-// many of these in parallel, so latency per call matters.
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+  async function askText(prompt: string, opts: AskOpts = {}): Promise<string> {
+    const maxTokens = opts.maxTokens ?? 1024;
 
-/** Send a single prompt and return the concatenated text of the response. */
-export async function askText(
-  prompt: string,
-  opts: { system?: string; maxTokens?: number } = {},
-): Promise<string> {
-  const msg = await anthropic().messages.create({
-    model: MODEL,
-    max_tokens: opts.maxTokens ?? 1024,
-    system: opts.system,
-    messages: [{ role: "user", content: prompt }],
-  });
-  return msg.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-}
+    // Extended thinking and temperature are mutually exclusive: the API requires
+    // temperature unset (i.e. 1) when thinking is enabled, and max_tokens must exceed
+    // the thinking budget, so we add the budget on top of the per-call cap.
+    const params: Anthropic.MessageCreateParamsNonStreaming = config.thinking
+      ? {
+          model: config.model,
+          max_tokens: THINKING_BUDGET + maxTokens,
+          thinking: { type: "enabled", budget_tokens: THINKING_BUDGET },
+          system: opts.system,
+          messages: [{ role: "user", content: prompt }],
+        }
+      : {
+          model: config.model,
+          max_tokens: maxTokens,
+          temperature: config.temperature,
+          system: opts.system,
+          messages: [{ role: "user", content: prompt }],
+        };
 
-/**
- * Ask for JSON and parse it. The model is instructed to return only JSON; we also
- * defensively extract the first balanced array/object in case it wraps prose or a
- * ```json fence around the payload.
- */
-export async function askJSON<T>(
-  prompt: string,
-  opts: { system?: string; maxTokens?: number } = {},
-): Promise<T> {
-  const raw = await askText(prompt, opts);
-  return parseJSON<T>(raw);
+    const msg = await client.messages.create(params);
+    return msg.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+  }
+
+  async function askJSON<T>(prompt: string, opts: AskOpts = {}): Promise<T> {
+    return parseJSON<T>(await askText(prompt, opts));
+  }
+
+  return { askText, askJSON };
 }
 
 function parseJSON<T>(raw: string): T {

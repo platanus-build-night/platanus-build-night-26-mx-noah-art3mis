@@ -1,39 +1,46 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Capture the options passed to Exa.search so we can assert de-novo exclusion etc.
+// Capture the options passed to Exa.search (and the constructor key) so we can assert
+// de-novo exclusion and per-request key resolution.
 const searchMock = vi.fn();
+const ctorMock = vi.fn();
 
 vi.mock("exa-js", () => {
   return {
     default: class FakeExa {
-      constructor(public key: string) {}
       search = searchMock;
+      constructor(key: string) {
+        ctorMock(key);
+      }
     },
   };
 });
 
-import { retrieveEvidence, FACT_CHECKERS } from "./exa";
+import { createExaSearch, FACT_CHECKERS } from "./exa";
 
 beforeEach(() => {
   searchMock.mockReset();
-  process.env.EXA_API_KEY = "test-key";
+  ctorMock.mockReset();
+  process.env.EXA_API_KEY = "env-key";
 });
 
 function withResults(results: unknown[]) {
   searchMock.mockResolvedValue({ results });
 }
 
-describe("retrieveEvidence de-novo retrieval", () => {
+const search = () => createExaSearch();
+
+describe("createExaSearch — de-novo retrieval", () => {
   it("excludes every fact-check outlet from the search (the honesty bar)", async () => {
     withResults([]);
-    await retrieveEvidence("did X happen?");
+    await search()("did X happen?");
     const opts = searchMock.mock.calls[0][1];
     expect(opts.excludeDomains).toEqual(FACT_CHECKERS);
   });
 
   it("caps results for graph legibility and requests highlights+text", async () => {
     withResults([]);
-    await retrieveEvidence("did X happen?");
+    await search()("did X happen?");
     const opts = searchMock.mock.calls[0][1];
     expect(opts.numResults).toBe(2);
     expect(opts.contents.highlights).toBe(true);
@@ -42,15 +49,15 @@ describe("retrieveEvidence de-novo retrieval", () => {
 
   it("passes the question text through as the query", async () => {
     withResults([]);
-    await retrieveEvidence("did X happen?");
+    await search()("did X happen?");
     expect(searchMock.mock.calls[0][0]).toBe("did X happen?");
   });
 });
 
-describe("retrieveEvidence mapping", () => {
+describe("createExaSearch — result mapping", () => {
   it("derives the bare domain from the url, stripping www.", async () => {
     withResults([{ url: "https://www.bbc.co.uk/news/x", title: "T", highlights: ["h"] }]);
-    const [ev] = await retrieveEvidence("q");
+    const [ev] = await search()("q");
     expect(ev.domain).toBe("bbc.co.uk");
   });
 
@@ -58,31 +65,31 @@ describe("retrieveEvidence mapping", () => {
     withResults([
       { url: "https://x.com", title: "T", highlights: ["the highlight"], text: "the full text" },
     ]);
-    const [ev] = await retrieveEvidence("q");
+    const [ev] = await search()("q");
     expect(ev.passage).toBe("the highlight");
   });
 
   it("falls back to text when no highlight is present", async () => {
     withResults([{ url: "https://x.com", title: "T", text: "  the full text  " }]);
-    const [ev] = await retrieveEvidence("q");
+    const [ev] = await search()("q");
     expect(ev.passage).toBe("the full text");
   });
 
   it("falls back to the url as title when the result has none", async () => {
     withResults([{ url: "https://x.com/a", highlights: ["h"] }]);
-    const [ev] = await retrieveEvidence("q");
+    const [ev] = await search()("q");
     expect(ev.title).toBe("https://x.com/a");
   });
 
   it("uses the provided favicon when present", async () => {
     withResults([{ url: "https://x.com", title: "T", favicon: "https://x.com/fav.ico", highlights: ["h"] }]);
-    const [ev] = await retrieveEvidence("q");
+    const [ev] = await search()("q");
     expect(ev.faviconUrl).toBe("https://x.com/fav.ico");
   });
 
   it("synthesizes a google s2 favicon url when the result lacks one", async () => {
     withResults([{ url: "https://x.com", title: "T", highlights: ["h"] }]);
-    const [ev] = await retrieveEvidence("q");
+    const [ev] = await search()("q");
     expect(ev.faviconUrl).toBe("https://www.google.com/s2/favicons?domain=x.com&sz=64");
   });
 
@@ -90,23 +97,32 @@ describe("retrieveEvidence mapping", () => {
     withResults([
       { url: "https://x.com", title: "T", highlights: ["h"], publishedDate: "2026-02-22T14:26:00Z" },
     ]);
-    const [ev] = await retrieveEvidence("q");
+    const [ev] = await search()("q");
     expect(ev.publishedDate).toBe("2026-02-22");
   });
 
   it("returns an empty passage when neither highlight nor text is available", async () => {
     withResults([{ url: "https://x.com", title: "T" }]);
-    const [ev] = await retrieveEvidence("q");
+    const [ev] = await search()("q");
     expect(ev.passage).toBe("");
   });
 });
 
-describe("retrieveEvidence configuration", () => {
-  it("throws a clear error when EXA_API_KEY is unset", async () => {
-    // The lazy client is module-scoped; force a fresh module so the unset key is seen.
+describe("createExaSearch — API key resolution", () => {
+  it("prefers the user-supplied key over the env key", async () => {
+    withResults([]);
+    await createExaSearch("user-key")("q");
+    expect(ctorMock).toHaveBeenCalledWith("user-key");
+  });
+
+  it("falls back to the env key when no user key is given", async () => {
+    withResults([]);
+    await createExaSearch()("q");
+    expect(ctorMock).toHaveBeenCalledWith("env-key");
+  });
+
+  it("throws a clear error when neither a user key nor EXA_API_KEY is present", () => {
     delete process.env.EXA_API_KEY;
-    vi.resetModules();
-    const { retrieveEvidence: fresh } = await import("./exa");
-    await expect(fresh("q")).rejects.toThrow(/EXA_API_KEY/);
+    expect(() => createExaSearch()).toThrow(/EXA_API_KEY/);
   });
 });

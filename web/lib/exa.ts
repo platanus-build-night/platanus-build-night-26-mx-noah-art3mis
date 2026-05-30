@@ -19,15 +19,6 @@ export const FACT_CHECKERS = [
   "prensalibre.com",
 ];
 
-let client: Exa | null = null;
-function exa(): Exa {
-  if (!client) {
-    if (!process.env.EXA_API_KEY) throw new Error("EXA_API_KEY is not set");
-    client = new Exa(process.env.EXA_API_KEY);
-  }
-  return client;
-}
-
 export interface RawEvidence {
   title: string;
   url: string;
@@ -39,35 +30,44 @@ export interface RawEvidence {
 }
 
 /**
- * One Exa search per Question node. Direct call — not Claude function-calling — because
- * our pipeline is deterministic: we decide when to search. `excludeDomains` enforces
- * de-novo retrieval. `type: "auto"` is the balanced ~1s default; numResults caps the
- * graph for legibility. We omit `maxAgeHours` so cache is served (livecrawl as fallback),
- * which is what makes rehearsed demo chips return fast on stage.
+ * Build an Exa search bound to one API key (the user's, or the EXA_API_KEY env fallback).
+ * The returned function does one search per Question node. Direct call — not Claude
+ * function-calling — because our pipeline is deterministic: we decide when to search.
+ * `excludeDomains` enforces de-novo retrieval. `type: "auto"` is the balanced ~1s default;
+ * numResults caps the graph for legibility. We omit `maxAgeHours` so cache is served
+ * (livecrawl as fallback), which is what makes rehearsed demo chips return fast on stage.
  */
-export async function retrieveEvidence(questionText: string): Promise<RawEvidence[]> {
-  const { results } = await exa().search(questionText, {
-    type: "auto",
-    numResults: 2,
-    excludeDomains: FACT_CHECKERS,
-    contents: {
-      highlights: true,
-      text: { maxCharacters: 800 },
-    },
-  });
+export function createExaSearch(
+  exaKey?: string,
+): (questionText: string) => Promise<RawEvidence[]> {
+  const apiKey = exaKey || process.env.EXA_API_KEY;
+  if (!apiKey) throw new Error("EXA_API_KEY is not set (and no key was provided)");
+  const client = new Exa(apiKey);
 
-  return results.map((r) => {
-    const highlight = Array.isArray(r.highlights) ? r.highlights[0] : undefined;
-    const passage = (highlight || r.text || "").trim();
-    return {
-      title: r.title ?? r.url,
-      url: r.url,
-      domain: domainOf(r.url),
-      faviconUrl: r.favicon || faviconFor(r.url),
-      publishedDate: r.publishedDate?.slice(0, 10),
-      passage,
-    };
-  });
+  return async function retrieveEvidence(questionText: string): Promise<RawEvidence[]> {
+    const { results } = await client.search(questionText, {
+      type: "auto",
+      numResults: 2,
+      excludeDomains: FACT_CHECKERS,
+      contents: {
+        highlights: true,
+        text: { maxCharacters: 800 },
+      },
+    });
+
+    return results.map((r) => {
+      const highlight = Array.isArray(r.highlights) ? r.highlights[0] : undefined;
+      const passage = (highlight || r.text || "").trim();
+      return {
+        title: r.title ?? r.url,
+        url: r.url,
+        domain: domainOf(r.url),
+        faviconUrl: r.favicon || faviconFor(r.url),
+        publishedDate: r.publishedDate?.slice(0, 10),
+        passage,
+      };
+    });
+  };
 }
 
 function domainOf(url: string): string {

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { AnthropicCaller } from "../anthropic";
 
-const { askJSON } = vi.hoisted(() => ({ askJSON: vi.fn() }));
-vi.mock("../anthropic", () => ({ askJSON }));
+const askJSON = vi.fn();
+const ask: AnthropicCaller = { askJSON, askText: vi.fn() };
 
 import { extractClaims } from "./extract";
 
@@ -13,14 +14,14 @@ describe("extractClaims", () => {
       { text: "claim one", original: "frag1", checkable: true },
       { text: "claim two", original: "frag2", checkable: true },
     ]);
-    const claims = await extractClaims("source");
+    const claims = await extractClaims("source", ask);
     expect(claims.map((c) => c.id)).toEqual(["c1", "c2"]);
     expect(claims.every((c) => c.verdict === null)).toBe(true);
   });
 
   it("preserves the decontextualized text and the original fragment", async () => {
     askJSON.mockResolvedValue([{ text: "decontextualized", original: "raw bit", checkable: true }]);
-    const [c] = await extractClaims("source");
+    const [c] = await extractClaims("source", ask);
     expect(c.text).toBe("decontextualized");
     expect(c.original).toBe("raw bit");
   });
@@ -29,24 +30,24 @@ describe("extractClaims", () => {
     askJSON.mockResolvedValue(
       Array.from({ length: 6 }, (_, i) => ({ text: `c${i}`, original: "o", checkable: true })),
     );
-    expect(await extractClaims("source")).toHaveLength(3);
+    expect(await extractClaims("source", ask)).toHaveLength(3);
   });
 
   it("marks a claim uncheckable only when the model explicitly says false", async () => {
     askJSON.mockResolvedValue([{ text: "media claim", original: "o", checkable: false }]);
-    const [c] = await extractClaims("source");
+    const [c] = await extractClaims("source", ask);
     expect(c.checkable).toBe(false);
   });
 
   it("defaults checkable to true when the model omits the field", async () => {
     askJSON.mockResolvedValue([{ text: "c", original: "o" }]);
-    const [c] = await extractClaims("source");
+    const [c] = await extractClaims("source", ask);
     expect(c.checkable).toBe(true);
   });
 
   it("embeds the source text in the user prompt", async () => {
     askJSON.mockResolvedValue([]);
-    await extractClaims("THE VIRAL POST");
+    await extractClaims("THE VIRAL POST", ask);
     expect(askJSON.mock.calls[0][0]).toContain("THE VIRAL POST");
   });
 });

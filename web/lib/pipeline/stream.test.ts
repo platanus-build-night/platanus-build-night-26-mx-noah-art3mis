@@ -19,6 +19,10 @@ vi.mock("./resolve", async () => {
 });
 
 import { streamPipeline, collectGraph } from "./stream";
+import type { PipelineDeps } from "./deps";
+
+// The leaf stages are mocked, so deps is inert here — a placeholder satisfies the type.
+const deps = { ask: { askJSON: vi.fn(), askText: vi.fn() }, search: vi.fn() } as PipelineDeps;
 
 let evCounter = 0;
 function evidence(questionId: string, stance: Stance): EvidenceItem {
@@ -53,7 +57,7 @@ beforeEach(() => {
 
 async function drain(text: string): Promise<PipelineEvent[]> {
   const out: PipelineEvent[] = [];
-  for await (const ev of streamPipeline(text)) out.push(ev);
+  for await (const ev of streamPipeline(text, deps)) out.push(ev);
   return out;
 }
 
@@ -132,7 +136,7 @@ describe("collectGraph", () => {
     generateQuestions.mockResolvedValue([question("c1", 1)]);
     resolveQuestion.mockResolvedValue([evidence("c1-q1", "supports")]);
 
-    const graph = await collectGraph("post");
+    const graph = await collectGraph("post", deps);
     expect(graph.source.text).toBe("post");
     expect(graph.claims[0].verdict).toBe("supported");
     expect(graph.claims[0].rationale).toMatch(/Supported by/);
@@ -148,7 +152,7 @@ describe("collectGraph", () => {
       evidence(q.id, q.id.endsWith("q1") ? "supports" : "refutes"),
     ]);
 
-    const graph = await collectGraph("post");
+    const graph = await collectGraph("post", deps);
     expect(graph.claims[0].verdict).toBe("conflicting");
     expect(graph.source.verdict).toBe("conflicting");
   });
@@ -160,7 +164,7 @@ describe("collectGraph", () => {
     );
     resolveQuestion.mockResolvedValue([evidence("c1-q1", "refutes")]);
 
-    const graph = await collectGraph("post");
+    const graph = await collectGraph("post", deps);
     const c1 = graph.claims.find((c) => c.id === "c1")!;
     const c2 = graph.claims.find((c) => c.id === "c2")!;
     expect(c1.verdict).toBe("refuted");

@@ -1,14 +1,15 @@
 import type { ClaimItem, QuestionItem, EvidenceItem, Verdict } from "../graph-types";
-import { retrieveEvidence } from "../exa";
+import type { PipelineDeps } from "./deps";
 import { classifyEvidence } from "./classify";
 
 /** Retrieve (de novo) + classify the evidence answering one question. */
 export async function resolveQuestion(
   claim: ClaimItem,
   question: QuestionItem,
+  deps: PipelineDeps,
 ): Promise<EvidenceItem[]> {
-  const raw = await retrieveEvidence(question.text);
-  return classifyEvidence(claim, question, raw);
+  const raw = await deps.search(question.text);
+  return classifyEvidence(claim, question, raw, deps.ask);
 }
 
 /** A one-line advisory "why" — composed from the deciding evidence, never asserted as truth. */

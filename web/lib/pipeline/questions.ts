@@ -1,4 +1,4 @@
-import { askJSON } from "../anthropic";
+import type { AnthropicCaller } from "../anthropic";
 import type { ClaimItem, QuestionItem } from "../graph-types";
 
 // Legibility cap (PLAN.md): ~2 questions per claim.
@@ -14,11 +14,14 @@ Rules:
 Respond with ONLY a JSON array of strings, no prose:
 ["<question 1>", "<question 2>"]`;
 
-export async function generateQuestions(claim: ClaimItem): Promise<QuestionItem[]> {
+export async function generateQuestions(
+  claim: ClaimItem,
+  ask: AnthropicCaller,
+): Promise<QuestionItem[]> {
   // Unverifiable-by-text claims get no questions — they resolve to NEI by design.
   if (!claim.checkable) return [];
 
-  const questions = await askJSON<string[]>(
+  const questions = await ask.askJSON<string[]>(
     `Claim: "${claim.text}"\n\nGenerate the resolving questions.`,
     { system: SYSTEM, maxTokens: 600 },
   );

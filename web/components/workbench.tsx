@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import FactGraphCanvas from "./fact-graph";
+import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel";
+import { MODELS } from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
 import type { FactGraph } from "@/lib/graph-types";
 import type { PipelineEvent } from "@/lib/pipeline/events";
@@ -10,6 +12,20 @@ import { DEMO_CACHE } from "@/lib/demo-cache";
 import { graphToEvents } from "@/lib/replay";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Persist run settings (model / temperature / thinking + the user's optional API keys)
+// in this browser, so a tester's configuration survives reloads.
+const SETTINGS_KEY = "veritrace.settings";
+
+function loadSettings(): Settings {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
 
 // Curated demo posts (real viral misinformation, text-native) — see demo-corpus/SOURCES.md.
 // The El Mencho story is the de-novo hero; the others give textured mixed-verdict graphs.
@@ -38,6 +54,19 @@ export default function Workbench() {
   const [error, setError] = useState<string | null>(null);
   const [cached, setCached] = useState(false);
   const [runId, setRunId] = useState(0);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Hydrate settings from localStorage after mount (avoids SSR/client mismatch),
+  // then persist on every change.
+  useEffect(() => setSettings(loadSettings()), []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch {
+      /* storage unavailable (private mode / quota) — settings just won't persist */
+    }
+  }, [settings]);
 
   async function check(source: string) {
     const trimmed = source.trim();
@@ -53,7 +82,16 @@ export default function Workbench() {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed }),
+        body: JSON.stringify({
+          text: trimmed,
+          config: {
+            model: settings.model,
+            temperature: settings.temperature,
+            thinking: settings.thinking,
+            anthropicKey: settings.anthropicKey || undefined,
+            exaKey: settings.exaKey || undefined,
+          },
+        }),
       });
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}));
@@ -101,9 +139,22 @@ export default function Workbench() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="vt-reveal border-b border-[var(--line)] bg-[var(--bg-2)]/60 px-6 py-3.5">
         <div className="flex flex-col gap-3">
-          <label className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)]">
-            ▣ Paste source text · the artifact under examination
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)]">
+              ▣ Paste source text · the artifact under examination
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowSettings((s) => !s)}
+              aria-expanded={showSettings}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
+            >
+              ⚙ {MODELS[settings.model]} · temp {settings.thinking ? "1·think" : settings.temperature.toFixed(2)}
+            </button>
+          </div>
+          {showSettings && (
+            <SettingsPanel settings={settings} onChange={setSettings} />
+          )}
           <div
             className="rounded-lg border bg-[var(--bg)] transition-colors focus-within:border-[var(--accent)]"
             style={{ borderColor: "var(--line-2)" }}
