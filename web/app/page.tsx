@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Workbench from "@/components/workbench";
 
 export default function Home() {
@@ -20,17 +21,25 @@ export default function Home() {
             the fact-checker that shows its work — you make the call
           </span>
         </div>
-        <div
-          className="hidden items-center gap-2 rounded-full border px-3 py-1.5 sm:flex"
-          style={{ borderColor: "rgba(58,214,230,0.3)", background: "rgba(58,214,230,0.06)" }}
-        >
-          <span
-            className="vt-pulse h-1.5 w-1.5 rounded-full"
-            style={{ background: "var(--accent)", color: "var(--accent)" }}
-          />
-          <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-2)]">
-            de novo · no fact-checkers in-loop
-          </span>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/methodology"
+            className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:text-[var(--accent)]"
+          >
+            Methodology &amp; refs
+          </Link>
+          <div
+            className="hidden items-center gap-2 rounded-full border px-3 py-1.5 sm:flex"
+            style={{ borderColor: "rgba(58,214,230,0.3)", background: "rgba(58,214,230,0.06)" }}
+          >
+            <span
+              className="vt-pulse h-1.5 w-1.5 rounded-full"
+              style={{ background: "var(--accent)", color: "var(--accent)" }}
+            />
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-2)]">
+              de novo · no fact-checkers in-loop
+            </span>
+          </div>
         </div>
       </header>
       <Workbench />
