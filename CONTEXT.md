@@ -1,0 +1,84 @@
+# VERITRACE
+
+An information-integrity workbench: a human pastes a document, the system decomposes it into checkable units and gathers evidence for each, and renders the result as a traversable evidence graph where the **human makes the final verdict** — not a black-box model. Explainability comes from the evidence trail (the *process*), not from a post-hoc natural-language justification.
+
+## Language
+
+**Source text**:
+The raw text a Fact-checker pastes in — a tweet, WhatsApp forward, Facebook caption, or pasted article. The misinformation artifact itself, framing and all. The root node of the graph. (Document-first input, per the SAFE/FacTool/Loki tradition.)
+_Avoid_: document (ok informally), input, claim (the Source text is not yet a Claim)
+
+**Claim**:
+An **atomic, decontextualized, checkable assertion extracted from the Source text** — the unit whose truth is in question. Extraction must **decontextualize**: inject the date/place/actor from the surrounding Source text so the Claim stands alone and is searchable (e.g. "comandos del CJNG tomaron el aeropuerto" → "Armed CJNG members seized Guadalajara International Airport around 22 Feb 2026"). Balance decontextuality with minimality ("molecular facts"). One Source text yields several Claims.
+_Avoid_: statement, fact (overloaded); sub-claim (merged into Claim — see below)
+
+**Sub-claim**:
+*Retired.* Earlier drafts split Claim → Sub-claim. With document-first input the extracted unit IS the atomic Claim, so the two collapse. Do not reintroduce a sub-claim layer (it would make the graph 5 deep and illegible).
+
+**Question**:
+A specific question the system generates to resolve a Claim ("What were Country X's 2010 emissions?"). The QA-pair (Question → answering Evidence) IS the explanation, per AVeriTeC. Makes the machine's reasoning observable to the Fact-checker.
+_Avoid_: query (reserve for the search-API string), prompt
+
+**Evidence**:
+A retrieved primary source (or an extracted passage from one) that answers a Question and thereby supports, refutes, or contextualizes a Claim. Carries provenance (who/when), a reliability signal, and a stance.
+_Avoid_: source (use for the document, not the retrieved item), result
+
+**Verdict**:
+The veracity label assigned to a Claim/Sub-claim, from the AVeriTeC 4-way set: **Supported / Refuted / Conflicting-or-Cherry-picked / Not-Enough-Evidence**. Never bare true/false. Carries uncertainty expressed as **source-reliability / evidence-quality**, not a bare confidence %. Advisory only — the Fact-checker decides.
+_Avoid_: result, answer, score, true/false
+
+**Evidence graph**:
+The traversable, interactive rendering of Source text → Claims → Questions → Evidence with typed edges (supports / refutes / contextualizes, carrying confidence). The graph *is* the explanation. This is VERITRACE's headline differentiator.
+_Avoid_: knowledge graph (broader/different), visualization
+
+**Primary evidence** vs **Answer key**:
+Two roles a retrieved link can play. **Primary evidence** is a source the pipeline is *allowed to retrieve and reason over* (a news-wire report, an official government statement, a registry). The **Answer key** is a finished third-party fact-check (PolitiFact, AFP, Factchequeado) used *only* to grade a run — it is **never fed to the pipeline**. Feeding a fact-check's conclusion into the graph is "Mode 1 in disguise" — the cheat to avoid.
+_Avoid_: source (ambiguous), reference
+
+**De novo check**:
+Reaching a Verdict from Primary evidence the pipeline gathered itself, with no prior human fact-check in the evidence set. The honesty bar for VERITRACE. Enforced mechanically by `excludeDomains`-ing fact-check outlets from retrieval.
+
+**Atom of suspicion**:
+The unit a verifier module inspects. Three kinds across the full platform vision: a Claim (claim module), a span of text (slop module), a manuscript element (integrity module). The hackathon build inspects only the Claim.
+
+**Human-in-the-loop**:
+The system performs the full analysis automatically and makes it **granularly observable** through the Evidence graph; a professional user (the Fact-checker) scrutinizes that trail and exercises final judgment. The system's Verdict is advisory, never authoritative. Control = observability (and, as a stretch, recompute-on-input). Accountability stays human.
+
+**Fact-checker**:
+The intended user — a journalist or professional fact-checker who uses VERITRACE to interrogate claims and whose published judgment is the real verdict. Not a general consumer; the UI is a professional workbench, not a consumer toy.
+_Avoid_: user, reader, consumer
+
+## Relationships
+
+The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
+
+- A **Source text** *yields* (via extract + decontextualize) one or more **Claims**
+- A **Claim** *asks* one or more **Questions**
+- A **Question** is *answered by* zero or more **Evidence** items
+- **Evidence** carries a stance toward its Claim via a typed, confidence-weighted edge (supports / refutes / contextualizes)
+- A **Verdict** is *proposed* by the system per Claim, *aggregated* to a Source-text-level assessment, and remains advisory to the **Fact-checker**
+- The **Evidence graph** renders all four layers and their edges as one traversable, live-building artifact
+
+## Flagged ambiguities
+
+- "Source" was used for both the input document and a retrieved evidence item — resolved: the input is the **document**; a retrieved item is **Evidence**.
+- ~~OPEN: the human's role.~~ **RESOLVED:** VERITRACE is an *observability workbench* for professional Fact-checkers. The AI does the analysis; the graph makes it granularly observable; the Fact-checker's professional judgment is final. The model's Verdict is advisory. "Read-only" ≠ "human can't decide" — authority lives in the journalist, not a UI button. Recompute-on-input is a stretch.
+
+## Decisions so far
+
+- **Demo hero**: the claim module, run deep and live. The three-atom platform vision is narrated, not built, for the hackathon. A fake-news-coherent second atom (slop / AI-text signal on the source article) is a possible stretch; academic-integrity is out for this audience.
+- **Backend**: DIY — frontier LLM (Anthropic) as reasoner over retrieved evidence + a hosted search API. No forked research pipeline.
+- **NLP boundary**: every NLP stage is an HTTP API call (Anthropic for decompose/verify, search API for retrieval, optional hosted detector for slop). No local model, no PyTorch, no GPU in the critical path. Any genuinely-required local model gets quarantined as a Python inference sidecar (Modal/Replicate) behind HTTP — the app stays TS.
+- **Stack**: single Next.js (TS) app — API routes stream the pipeline; React Flow renders bespoke claim/evidence card-nodes. Deploy on Vercel. (See ADR 0001.)
+- **Licenses**: non-commercial is acceptable for the demo (frees AVeriTeC/CopeNLU datasets and PPS/Retraction Watch as demo material).
+- **Interaction**: read-only granular observability is core; the graph **builds live/progressively** as the pipeline streams. Recompute-on-distrust is a stretch.
+- **Input model (document-first)**: input is **pasted Source text** (tweet/post/message; an article is just a long blob), not a clean typed claim. The pipeline's first stage **extracts + decontextualizes** atomic Claims from it — the SAFE/FacTool/Loki tradition (vs claim-first FEVER/AVeriTeC, which start from a pre-isolated claim + speaker/date/location metadata). Decontextualization is mandatory: inject date/place/actor from the Source text before retrieval, or Claims are unsearchable. Article-URL fetch is a stretch; the box accepts a raw text blob either way.
+- **Graph**: 4 layers — Source text → Claims → Questions → Evidence (AVeriTeC QA-pair = explanation). "Sub-claim" retired (merged into Claim).
+- **Verdict taxonomy**: AVeriTeC 4-way; uncertainty shown as source-reliability/evidence-quality, not a bare %.
+- **Search/LLM**: Exa for evidence retrieval (content + date + domain in one call); Anthropic for extract/decontextualize/question/verify.
+- **Demo input**: curated example **post** chips (rehearsed viral messages, textured outcomes) + live retrieval + per-chip cached fallback; free-paste also available.
+- **Name/pitch**: VERITRACE — "The AI fact-checker that shows its work. You make the call."
+- **Retrieval honesty (de novo only)**: the pipeline must reach Verdicts from Primary evidence it gathers itself, never from a third-party fact-check. Enforced by `excludeDomains` on fact-check outlets in the Exa call. Fact-checks live in the demo corpus as the **Answer key** (grading only).
+- **Checkable claim types**: this text-in + web-search build can honestly check **event/existence** and **official-denial** sub-claims de novo. It **cannot** check **media-provenance**, **synthetic-media**, or **origin/rumor-chain** sub-claims (no pixels, no reverse-image/geo/detector tooling) — those correctly return **Not-Enough-Evidence**. NEI here is the uncertainty-first principle working, not a failure.
+- **Demo hero claim**: Story 2 (El Mencho / Guadalajara airport) — "died" (Supported via wire) + "airport seized / hostages" (Refuted via official denial), both reachable de novo without any fact-checker.
+- **Out of scope for the build**: academic-integrity module (wrong audience). Pixel/provenance handling (image-or-video ingest + a hosted AI-media detector, the slop atom) is a **deferred stretch** — add after the core is solid if time allows; it's the honest path to checking provenance/synthetic-media claims later.

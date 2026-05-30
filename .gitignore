@@ -1,1 +1,8 @@
+# secrets — never commit
+.env
+.env.*
+
+# working notes / scratch
 NOTES/
+asldkjs
+*.backup

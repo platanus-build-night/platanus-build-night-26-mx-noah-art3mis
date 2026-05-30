@@ -1,5 +1,5 @@
 {
-  "project-name": "<FILL THIS>",
-  "project-oneliner": "<FILL THIS>",
-  "project-description": "<FILL THIS>"
+  "project-name": "VERITRACE",
+  "project-oneliner": "The AI fact-checker that shows its work.",
+  "project-description": "VERITRACE is an observability workbench for fact-checking. Paste a claim and an AI decomposes it into atomic sub-claims, generates the exact questions needed to resolve each, and retrieves live primary sources to answer them — laying the entire reasoning trail bare as a traversable evidence graph that builds itself in real time. Verdicts use nuanced labels (Supported / Refuted / Conflicting / Not-Enough-Evidence) and are advisory only: every step traces to a primary source, so the journalist — not the model — makes the final call. Built for the people who can't afford to trust a black box -- enhancing humans instead of substituting them."
 }
