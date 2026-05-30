@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Methodology & References — VERITRACE",
   description:
-    "How VERITRACE works and the research it is grounded in: document-first claim decomposition, de-novo evidence retrieval, the AVeriTeC four-way verdict taxonomy, and process-based explainability.",
+    "How VERITRACE works and the research it is grounded in: document-first claim decomposition, primary-source evidence retrieval, the AVeriTeC four-way verdict taxonomy, and process-based explainability.",
 };
 
 const PIPELINE: { n: string; title: string; body: string; color: string }[] = [
@@ -28,8 +28,8 @@ const PIPELINE: { n: string; title: string; body: string; color: string }[] = [
   },
   {
     n: "04",
-    title: "Retrieve (de novo)",
-    body: "Each question drives a live web search for primary sources — news wires, official statements, registries. Fact-check outlets are mechanically excluded, so the verdict is re-derived from primary evidence, never copied from someone else’s finished fact-check.",
+    title: "Retrieve",
+    body: "Each question drives a live web search, and an agent traces every claim back to its originating source — news wires, official statements, registries — rather than stopping at re-reporting that echoes the viral claim. The verdict is built from that primary evidence: a finished third-party fact-check is treated as a lead to its underlying sources, not as the answer to copy.",
     color: "#34d399",
   },
   {
@@ -229,25 +229,6 @@ export default function MethodologyPage() {
           verdict is advisory; the evidence trail is the product.
         </p>
 
-        {/* Pull-stat */}
-        <div
-          className="mt-10 rounded-xl border px-6 py-6"
-          style={{ borderColor: "var(--line-2)", background: "var(--panel)" }}
-        >
-          <div className="flex items-baseline gap-4">
-            <span className="font-display text-[40px] font-semibold italic leading-none" style={{ color: "var(--refutes)" }}>
-              Unfaithful
-            </span>
-            <p className="text-[14px] leading-[1.6] text-[var(--ink-2)]">
-              Zero-shot LLM fact-check explanations are routinely <em>unfaithful</em> — convincing
-              but disconnected from the actual reasoning
-              <span className="text-[var(--ink-3)]"> (Kim et al., 2024)</span>. VERITRACE never asks
-              you to trust a generated justification — it traces every step to a primary source you
-              can open.
-            </p>
-          </div>
-        </div>
-
         {/* Pipeline */}
         <section className="mt-14">
           <SectionTitle>The pipeline</SectionTitle>
@@ -275,19 +256,21 @@ export default function MethodologyPage() {
           </ol>
         </section>
 
-        {/* De novo */}
+        {/* Primary-source bar */}
         <section className="mt-14">
-          <SectionTitle>De-novo retrieval — the honesty bar</SectionTitle>
+          <SectionTitle>Tracing to primary sources — the honesty bar</SectionTitle>
           <p className="mt-4 text-[14px] leading-[1.7] text-[var(--ink-2)]">
             A retrieved link can play one of two roles.{" "}
-            <span className="text-[var(--ink-1)]">Primary evidence</span> is a source the pipeline is
-            allowed to reason over — a news-wire report, an official statement, a registry. The{" "}
-            <span className="text-[var(--ink-1)]">answer key</span> is a finished third-party
-            fact-check, used only to grade a run and <em>never</em> fed into the graph. Feeding a
-            fact-check&apos;s conclusion into the verdict is the cheat we avoid. It is enforced
-            mechanically: every search excludes known fact-check outlets, so VERITRACE re-derives the
-            verdict from primary sources — holding a stricter bar than the AVeriTeC benchmark itself,
-            whose evidence may include any web source.
+            <span className="text-[var(--ink-1)]">Primary evidence</span> is a source the pipeline
+            reasons over — a news-wire report, an official statement, a registry. A{" "}
+            <span className="text-[var(--ink-1)]">finished third-party fact-check</span> is a
+            different thing: useful as a pointer to the primary sources it cites, but its conclusion
+            is never the answer we copy. The cheat we avoid is letting someone else&apos;s verdict
+            stand in for our own. Fact-check outlets are currently allowed back into retrieval — so
+            the agent can follow them through to the originating reports — but the verdict is always
+            re-derived from the primary evidence the pipeline classifies for stance, reliability, and
+            source type. <span className="text-[var(--ink-3)]">(A stricter mode that mechanically
+            excludes those outlets from search is available and can be re-enabled.)</span>
           </p>
         </section>
 
@@ -324,7 +307,8 @@ export default function MethodologyPage() {
           <p className="mt-4 text-[14px] leading-[1.7] text-[var(--ink-2)]">
             A text-in, web-search build can honestly check{" "}
             <span className="text-[var(--ink-1)]">event/existence</span> and{" "}
-            <span className="text-[var(--ink-1)]">official-denial</span> claims de novo. It{" "}
+            <span className="text-[var(--ink-1)]">official-denial</span> claims from primary
+            sources. It{" "}
             <span className="text-[var(--ink-1)]">cannot</span> verify media-provenance,
             synthetic-media, or origin-trace claims — there are no pixels, no reverse-image or
             detector tooling — so those correctly resolve to{" "}
@@ -406,7 +390,7 @@ export default function MethodologyPage() {
 
         <footer className="mt-14 border-t border-[var(--line)] pt-6">
           <p className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-[var(--ink-3)]">
-            VERITRACE · evidence graph · de novo · the verdict is advisory
+            VERITRACE · evidence graph · primary-source-first · the verdict is advisory
           </p>
           <Link
             href="/"

@@ -48,6 +48,10 @@ The system performs the full analysis automatically and makes it **granularly ob
 The intended user — a journalist or professional fact-checker who uses VERITRACE to interrogate claims and whose published judgment is the real verdict. Not a general consumer; the UI is a professional workbench, not a consumer toy.
 _Avoid_: user, reader, consumer
 
+**Investigation brief**:
+A post-run summary panel that auto-opens (left slide-in) when a run resolves: the Source-text Verdict, the support ratio, and an AI-generated narrative summary of the run. An **advisory legibility aid** — it lets the Fact-checker get the gist without panning/zooming the Evidence graph. Explicitly secondary to the graph (which remains *the* explanation), and it summarizes only what the graph already contains.
+_Avoid_: report, verdict (the brief restates the graph's Verdict, it does not author one), explanation (the graph is the explanation)
+
 ## Relationships
 
 The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
@@ -82,3 +86,5 @@ The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
 - **Checkable claim types**: this text-in + web-search build can honestly check **event/existence** and **official-denial** sub-claims de novo. It **cannot** check **media-provenance**, **synthetic-media**, or **origin/rumor-chain** sub-claims (no pixels, no reverse-image/geo/detector tooling) — those correctly return **Not-Enough-Evidence**. NEI here is the uncertainty-first principle working, not a failure.
 - **Demo hero claim**: Story 2 (El Mencho / Guadalajara airport) — "died" (Supported via wire) + "airport seized / hostages" (Refuted via official denial), both reachable de novo without any fact-checker.
 - **Out of scope for the build**: academic-integrity module (wrong audience). Pixel/provenance handling (image-or-video ingest + a hosted AI-media detector, the slop atom) is a **deferred stretch** — add after the core is solid if time allows; it's the honest path to checking provenance/synthetic-media claims later.
+- **Investigation brief (post-run summary)**: a left-side panel auto-opens when a run resolves, showing the Source-text Verdict, the support ratio, and an *AI-generated narrative summary*. This is a deliberate, bounded exception to "explainability = the process, not a post-hoc justification": the summary is an **advisory legibility aid** (so the Fact-checker gets the gist without panning/zooming the graph), explicitly secondary to the Evidence graph, which remains *the* explanation. It summarizes only the digest already in the graph — it never introduces facts or a Verdict the graph doesn't show.
+- **Run legibility caps (configurable)**: the graph grows as Claims × Questions × Evidence, so all three multipliers are user-set caps surfaced in the settings panel (claims, questions per claim, sources per search; each 1–10). Defaults stay low for a legible first run; raising them trades density/cost for thoroughness.

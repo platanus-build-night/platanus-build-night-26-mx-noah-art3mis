@@ -60,7 +60,10 @@ export function createExaSearch(
     const { results } = await client.search(query, {
       type: "auto",
       numResults,
-      excludeDomains: FACT_CHECKERS,
+      // De-novo exclusion turned OFF for now: fact-check outlets (FACT_CHECKERS) are
+      // currently allowed back into retrieval so the pipeline can reach primary sources
+      // even when they only surface via a fact-check's citations. Re-add
+      // `excludeDomains: FACT_CHECKERS` here to restore the strict de-novo honesty bar.
       // A claim-date window (when known) keeps stale pre-event matches and far-future
       // re-litigation out, while still admitting the day-of/after primary reporting.
       ...(opts.startPublishedDate ? { startPublishedDate: opts.startPublishedDate } : {}),

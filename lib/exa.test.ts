@@ -16,7 +16,7 @@ vi.mock("exa-js", () => {
   };
 });
 
-import { createExaSearch, FACT_CHECKERS } from "./exa";
+import { createExaSearch } from "./exa";
 
 beforeEach(() => {
   searchMock.mockReset();
@@ -31,11 +31,11 @@ function withResults(results: unknown[]) {
 const search = () => createExaSearch();
 
 describe("createExaSearch — de-novo retrieval", () => {
-  it("excludes every fact-check outlet from the search (the honesty bar)", async () => {
+  it("does not exclude fact-check outlets — the de-novo bar is turned off for now", async () => {
     withResults([]);
     await search()("did X happen?");
     const opts = searchMock.mock.calls[0][1];
-    expect(opts.excludeDomains).toEqual(FACT_CHECKERS);
+    expect(opts).not.toHaveProperty("excludeDomains");
   });
 
   it("caps results for graph legibility and requests highlights+text", async () => {
