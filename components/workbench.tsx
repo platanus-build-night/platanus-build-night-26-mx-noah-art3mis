@@ -37,14 +37,19 @@ const EXAMPLES: { label: string; text: string }[] = [
       "ÚLTIMA HORA: Tras la muerte de 'El Mencho' el 22 de febrero, comandos armados del CJNG tomaron por asalto el Aeropuerto Internacional de Guadalajara y mantienen como rehenes a turistas estadounidenses. Mientras tanto, Puerto Vallarta arde en llamas.",
   },
   {
-    label: "Venezuela · post-Maduro",
-    text:
-      "VÍDEO: venezolanos salen a las calles a celebrar la caída de Maduro y agradecen, entre lágrimas, a Donald Trump por la liberación del país.",
-  },
-  {
     label: "Springfield · pets",
     text:
       "In Springfield, they're eating the dogs. The people that came in, they're eating the cats, they're eating the pets of the people that live there.",
+  },
+  {
+    label: "Shakira · show no Rio",
+    text:
+      "URGENTE 🚨 Durante seu show no Rio de Janeiro, Shakira parou no meio da apresentação para declarar apoio a Lula e pediu que a plateia votasse contra Bolsonaro. Milhares de fãs vaiaram e o vídeo já viralizou nas redes!",
+  },
+  {
+    label: "Pfizer · hantavírus",
+    text:
+      "Documento oficial da própria Pfizer cita o hantavírus como reação adversa da vacina contra a Covid-19. Eles sabiam o tempo todo e esconderam de todo mundo. Compartilhe antes que apaguem!",
   },
 ];
 
