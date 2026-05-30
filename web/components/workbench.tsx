@@ -4,6 +4,8 @@ import { useState } from "react";
 import FactGraphCanvas from "./fact-graph";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
 import type { FactGraph } from "@/lib/graph-types";
+import type { PipelineEvent } from "@/lib/pipeline/events";
+import { applyEvent, emptyGraph } from "@/lib/apply-event";
 
 // Curated demo posts (real viral misinformation, text-native) — see demo-corpus/SOURCES.md.
 // The El Mencho story is the de-novo hero; the others give textured mixed-verdict graphs.
@@ -37,19 +39,37 @@ export default function Workbench() {
     if (!trimmed || loading) return;
     setLoading(true);
     setError(null);
+    // Reset to an empty graph for this source; the stream builds it node by node.
+    setGraph(emptyGraph(trimmed));
+    setRunId((n) => n + 1);
+
     try {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: trimmed }),
       });
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `Request failed (${res.status})`);
       }
-      const result: FactGraph = await res.json();
-      setGraph(result);
-      setRunId((n) => n + 1); // remount canvas so it re-fits to the new graph
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? ""; // keep the trailing partial line
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const ev = JSON.parse(line) as PipelineEvent;
+          if (ev.type === "error") throw new Error(ev.message);
+          setGraph((g) => applyEvent(g, ev));
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -105,9 +125,9 @@ export default function Workbench() {
       <main className="relative flex-1">
         <FactGraphCanvas key={runId} graph={graph} />
         {loading && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px]">
-            <div className="flex items-center gap-3 rounded-full border border-slate-700 bg-slate-900/90 px-5 py-2.5 text-[13px] text-slate-200 shadow-xl">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-sky-500/40 border-t-sky-400" />
+          <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2">
+            <div className="flex items-center gap-2.5 rounded-full border border-slate-700 bg-slate-900/90 px-4 py-2 text-[12px] text-slate-200 shadow-xl backdrop-blur">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-500/40 border-t-sky-400" />
               Decomposing claims, gathering primary sources…
             </div>
           </div>

@@ -24,3 +24,21 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Live build: new nodes fade in; existing nodes glide as dagre re-lays out the
+   growing graph. React Flow drives node position via `transform: translate()`, so
+   the appear animation must touch opacity ONLY (animating transform would hijack
+   positioning) — the transform transition turns layout shifts into smooth motion. */
+.react-flow__node {
+  animation: node-appear 340ms ease-out;
+  transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes node-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

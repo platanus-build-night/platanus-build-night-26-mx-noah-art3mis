@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   Controls,
   MiniMap,
+  useReactFlow,
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -20,6 +21,15 @@ const MINIMAP_COLOR: Record<string, string> = {
   question: "#38bdf8",
   evidence: "#34d399",
 };
+
+// Keep the whole graph in frame as nodes stream in during the live build.
+function FitOnGrow({ count }: { count: number }) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    fitView({ padding: 0.15, duration: 400 });
+  }, [count, fitView]);
+  return null;
+}
 
 export default function FactGraphCanvas({ graph }: { graph: FactGraph }) {
   const { nodes, edges } = useMemo(() => graphToFlow(graph), [graph]);
@@ -36,6 +46,7 @@ export default function FactGraphCanvas({ graph }: { graph: FactGraph }) {
       proOptions={{ hideAttribution: true }}
       className="bg-transparent"
     >
+      <FitOnGrow count={nodes.length} />
       <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="#1e293b" />
       <Controls className="!border-slate-700 !bg-slate-800 [&_button]:!border-slate-700 [&_button]:!bg-slate-800 [&_button]:!fill-slate-300" />
       <MiniMap

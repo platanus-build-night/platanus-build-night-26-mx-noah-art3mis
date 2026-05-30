@@ -1,7 +1,8 @@
-import { runPipeline } from "@/lib/pipeline/run";
+import { streamPipeline } from "@/lib/pipeline/stream";
 
 // The pipeline calls Anthropic + Exa, so it must run on the Node runtime and is
-// inherently dynamic (never cached). It can take several seconds to fan out.
+// inherently dynamic (never cached). It streams events as NDJSON so the client can
+// build the evidence graph live.
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -16,13 +17,28 @@ export async function POST(request: Request) {
   if (typeof text !== "string" || text.trim().length === 0) {
     return Response.json({ error: "Body must include non-empty 'text'." }, { status: 400 });
   }
+  const source = text.trim();
 
-  try {
-    const graph = await runPipeline(text.trim());
-    return Response.json(graph);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Pipeline failed";
-    console.error("[/api/check]", err);
-    return Response.json({ error: message }, { status: 500 });
-  }
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+      try {
+        for await (const event of streamPipeline(source)) send(event);
+      } catch (err) {
+        console.error("[/api/check]", err);
+        send({ type: "error", message: err instanceof Error ? err.message : "Pipeline failed" });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
