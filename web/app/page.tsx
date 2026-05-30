@@ -1,9 +1,8 @@
-import FactGraphCanvas from "@/components/fact-graph";
-import { MOCK_GRAPH } from "@/lib/mock-graph";
+import Workbench from "@/components/workbench";
 
 export default function Home() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col overflow-hidden">
       <header className="flex items-baseline gap-3 border-b border-slate-800 px-6 py-3">
         <span className="text-lg font-semibold tracking-tight text-slate-50">
           VERITRACE
@@ -12,9 +11,7 @@ export default function Home() {
           the AI fact-checker that shows its work — you make the call
         </span>
       </header>
-      <main className="relative flex-1">
-        <FactGraphCanvas graph={MOCK_GRAPH} />
-      </main>
+      <Workbench />
     </div>
   );
 }
