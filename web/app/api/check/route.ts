@@ -30,7 +30,11 @@ export async function POST(request: Request) {
   let deps;
   try {
     const config = parseConfig(body.config);
-    deps = { ask: createAnthropic(config), search: createExaSearch(config.exaKey) };
+    deps = {
+      ask: createAnthropic(config),
+      search: createExaSearch(config.exaKey),
+      maxClaims: config.maxClaims,
+    };
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "Invalid run configuration" },

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AnthropicCaller } from "../anthropic";
 
 const askJSON = vi.fn();
-const ask: AnthropicCaller = { askJSON, askText: vi.fn() };
+const ask: AnthropicCaller = { askJSON, askText: vi.fn(), askWithTools: vi.fn() };
 
 import { classifyEvidence } from "./classify";
 import type { ClaimItem, QuestionItem } from "../graph-types";
@@ -68,6 +68,20 @@ describe("classifyEvidence", () => {
       publishedDate: "2026-01-01",
       passage: "a passage",
     });
+  });
+
+  it("forces wikipedia.org to high reliability, overriding the model's rating", async () => {
+    // Wikipedia is a privileged trusted source: its reliability is not left to the LLM.
+    askJSON.mockResolvedValue([
+      { stance: "supports", reliability: "low", sourceType: "secondary", stanceConfidence: 0.8 },
+    ]);
+    const [e] = await classifyEvidence(claim, question, [
+      raw({ domain: "en.wikipedia.org", url: "https://en.wikipedia.org/wiki/X" }),
+    ], ask);
+    expect(e.reliability).toBe("high");
+    // Only reliability is overridden — the model's stance/sourceType are kept.
+    expect(e.stance).toBe("supports");
+    expect(e.sourceType).toBe("secondary");
   });
 
   it("falls back to a low-confidence contextual classification when one is missing", async () => {

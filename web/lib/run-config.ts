@@ -19,11 +19,21 @@ export const DEFAULT_MODEL: ModelId = "claude-sonnet-4-6";
 // max_tokens > budget_tokens; createAnthropic adds this on top of the per-call cap.
 export const THINKING_BUDGET = 2048;
 
+// How many atomic claims the extractor keeps. This is a legibility cap: the evidence
+// graph grows as claims × questions × sources, so more claims means a denser, slower
+// run. Surfaced and adjustable in the UI, but bounded server-side so a run stays
+// readable and within the route's time budget.
+export const MIN_CLAIMS = 1;
+export const MAX_CLAIMS = 10;
+export const DEFAULT_CLAIMS = 5;
+
 export interface RunConfig {
   model: ModelId;
   /** 0..1. Lower = more deterministic. Ignored (forced to 1) when thinking is on. */
   temperature: number;
   thinking: boolean;
+  /** Atomic claims the extractor keeps (MIN_CLAIMS..MAX_CLAIMS) — a legibility cap. */
+  maxClaims: number;
   /** User-supplied key; blank ⇒ the server falls back to its ANTHROPIC_API_KEY env. */
   anthropicKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
@@ -36,6 +46,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   model: DEFAULT_MODEL,
   temperature: 0,
   thinking: false,
+  maxClaims: DEFAULT_CLAIMS,
 };
 
 function isModelId(value: unknown): value is ModelId {
@@ -76,10 +87,20 @@ export function parseConfig(input: unknown): RunConfig {
     temperature = t;
   }
 
+  let maxClaims = DEFAULT_CONFIG.maxClaims;
+  if (raw.maxClaims !== undefined) {
+    const m = raw.maxClaims;
+    if (typeof m !== "number" || !Number.isInteger(m) || m < MIN_CLAIMS || m > MAX_CLAIMS) {
+      throw new Error(`maxClaims must be an integer between ${MIN_CLAIMS} and ${MAX_CLAIMS}`);
+    }
+    maxClaims = m;
+  }
+
   return {
     model,
     temperature,
     thinking: Boolean(raw.thinking),
+    maxClaims,
     anthropicKey: cleanKey(raw.anthropicKey),
     exaKey: cleanKey(raw.exaKey),
   };

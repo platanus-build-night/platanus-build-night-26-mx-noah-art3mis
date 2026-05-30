@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import FactGraphCanvas from "./fact-graph";
 import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel";
 import { MODELS } from "@/lib/run-config";
@@ -56,6 +56,8 @@ export default function Workbench() {
   const [runId, setRunId] = useState(0);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
+  // Lets the manual "Cached" button interrupt an in-flight live run (see runCached).
+  const abortRef = useRef<AbortController | null>(null);
 
   // Hydrate settings from localStorage after mount (avoids SSR/client mismatch),
   // then persist on every change.
@@ -68,9 +70,24 @@ export default function Workbench() {
     }
   }, [settings]);
 
+  // Replay a captured run as a simulated stream — shared by the automatic wifi-death
+  // fallback and the manual "Cached" demo button. The caller owns loading / runId.
+  async function replayCached(trimmed: string, fallback: FactGraph) {
+    setCached(true);
+    setGraph(emptyGraph(trimmed));
+    for (const { event, delay } of graphToEvents(fallback)) {
+      await sleep(delay);
+      if (event.type !== "error" && event.type !== "done") {
+        setGraph((g) => applyEvent(g, event));
+      }
+    }
+  }
+
   async function check(source: string) {
     const trimmed = source.trim();
     if (!trimmed || loading) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
     setCached(false);
@@ -82,12 +99,14 @@ export default function Workbench() {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           text: trimmed,
           config: {
             model: settings.model,
             temperature: settings.temperature,
             thinking: settings.thinking,
+            maxClaims: settings.maxClaims,
             anthropicKey: settings.anthropicKey || undefined,
             exaKey: settings.exaKey || undefined,
           },
@@ -115,25 +134,43 @@ export default function Workbench() {
         }
       }
     } catch (err) {
+      // Superseded by a manual "Cached" press — that handler now owns the UI.
+      if (controller.signal.aborted) return;
       // Wifi-death fallback: if this exact source has a cached run, replay it as a
       // simulated stream so the demo still works offline (PLAN.md top risk).
       const fallback = DEMO_CACHE[trimmed];
       if (fallback) {
-        setCached(true);
-        setGraph(emptyGraph(trimmed));
-        for (const { event, delay } of graphToEvents(fallback)) {
-          await sleep(delay);
-          if (event.type !== "error" && event.type !== "done") {
-            setGraph((g) => applyEvent(g, event));
-          }
-        }
+        await replayCached(trimmed, fallback);
       } else {
         setError(err instanceof Error ? err.message : "Something went wrong");
       }
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      // When aborted, the manual handler controls loading — don't clear it here.
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }
+
+  // Manual demo fallback: skip (or interrupt) the live pipeline and replay the captured
+  // run for the current source — the "if the wifi dies on stage, press this" button.
+  // Only meaningful for specimen texts that have a cached run.
+  async function runCached(source: string) {
+    const trimmed = source.trim();
+    const fallback = DEMO_CACHE[trimmed];
+    if (!fallback) return;
+    abortRef.current?.abort(); // bail on any in-flight live run so we don't fight over the graph
+    setError(null);
+    setLoading(true);
+    setRunId((n) => n + 1);
+    try {
+      await replayCached(trimmed, fallback);
+    } finally {
       setLoading(false);
     }
   }
+
+  // Whether the current text has a captured run available to replay.
+  const cachedAvailable = text.trim().length > 0 && Boolean(DEMO_CACHE[text.trim()]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -149,7 +186,7 @@ export default function Workbench() {
               aria-expanded={showSettings}
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
             >
-              ⚙ {MODELS[settings.model]} · temp {settings.thinking ? "1·think" : settings.temperature.toFixed(2)}
+              ⚙ {MODELS[settings.model]} · temp {settings.thinking ? "1·think" : settings.temperature.toFixed(2)} · ≤{settings.maxClaims} claims
             </button>
           </div>
           {showSettings && (
@@ -188,9 +225,22 @@ export default function Workbench() {
               </button>
             ))}
             <button
+              type="button"
+              onClick={() => runCached(text)}
+              disabled={!cachedAvailable || (loading && cached)}
+              title={
+                cachedAvailable
+                  ? "Replay the captured run for this text — offline-safe demo fallback"
+                  : "No cached run for this text; pick a specimen chip"
+              }
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ↺ Cached
+            </button>
+            <button
               onClick={() => check(text)}
               disabled={loading || text.trim().length === 0}
-              className="ml-auto inline-flex items-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               style={{
                 background:
                   loading || text.trim().length === 0

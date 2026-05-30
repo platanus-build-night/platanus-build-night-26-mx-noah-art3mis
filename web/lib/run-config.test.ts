@@ -49,6 +49,28 @@ describe("parseConfig validation", () => {
   });
 });
 
+describe("parseConfig maxClaims", () => {
+  it("defaults maxClaims to 5", () => {
+    expect(parseConfig({}).maxClaims).toBe(5);
+  });
+
+  it("accepts an in-range integer maxClaims", () => {
+    expect(parseConfig({ maxClaims: 8 }).maxClaims).toBe(8);
+  });
+
+  it("rejects maxClaims below the minimum", () => {
+    expect(() => parseConfig({ maxClaims: 0 })).toThrow(/claim/i);
+  });
+
+  it("rejects maxClaims above the maximum", () => {
+    expect(() => parseConfig({ maxClaims: 11 })).toThrow(/claim/i);
+  });
+
+  it("rejects a non-integer maxClaims", () => {
+    expect(() => parseConfig({ maxClaims: 3.5 })).toThrow(/claim/i);
+  });
+});
+
 describe("parseConfig API keys", () => {
   it("passes through non-empty trimmed keys", () => {
     const cfg = parseConfig({ anthropicKey: "  sk-ant-123  ", exaKey: "exa-456" });

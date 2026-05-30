@@ -18,7 +18,7 @@ vi.mock("@anthropic-ai/sdk", () => {
 
 import { createAnthropic } from "./anthropic";
 
-const baseConfig: RunConfig = { model: "claude-sonnet-4-6", temperature: 0, thinking: false };
+const baseConfig: RunConfig = { model: "claude-sonnet-4-6", temperature: 0, thinking: false, maxClaims: 5 };
 
 beforeEach(() => {
   createMock.mockReset();
@@ -27,7 +27,23 @@ beforeEach(() => {
 });
 
 function reply(...blocks: Array<{ type: string; text?: string }>) {
-  createMock.mockResolvedValue({ content: blocks });
+  createMock.mockResolvedValue({ content: blocks, stop_reason: "end_turn" });
+}
+
+/** Queue one assistant turn that requests a tool call. */
+function toolUseReply(id: string, name: string, input: unknown) {
+  createMock.mockResolvedValueOnce({
+    content: [{ type: "tool_use", id, name, input }],
+    stop_reason: "tool_use",
+  });
+}
+
+/** Queue one final assistant turn that ends the loop with text. */
+function textReply(text: string) {
+  createMock.mockResolvedValueOnce({
+    content: [{ type: "text", text }],
+    stop_reason: "end_turn",
+  });
 }
 
 function lastRequest() {
@@ -146,5 +162,68 @@ describe("createAnthropic — askJSON parsing", () => {
   it("throws an informative error when no JSON can be recovered", async () => {
     reply({ type: "text", text: "I could not complete that request." });
     await expect(ask().askJSON("p")).rejects.toThrow(/Could not parse JSON/);
+  });
+});
+
+describe("createAnthropic — askWithTools loop", () => {
+  const TOOLS = [
+    {
+      name: "search_evidence",
+      description: "search the web",
+      input_schema: { type: "object" as const, properties: { query: { type: "string" } } },
+    },
+  ];
+
+  it("runs the requested tool, feeds the result back, and returns the final text", async () => {
+    toolUseReply("t1", "search_evidence", { query: "did X happen?" });
+    textReply("found enough");
+
+    const onTool = vi.fn().mockResolvedValue([{ domain: "bbc.com" }]);
+    const result = await createAnthropic(baseConfig).askWithTools("resolve this", {
+      system: "gather",
+      tools: TOOLS,
+      onTool,
+      maxSteps: 4,
+    });
+
+    expect(onTool).toHaveBeenCalledWith("search_evidence", { query: "did X happen?" });
+    expect(result.text).toBe("found enough");
+    expect(result.toolCalls).toEqual([{ name: "search_evidence", input: { query: "did X happen?" } }]);
+
+    // The second request must carry the assistant tool_use turn + a tool_result user turn.
+    const secondMessages = createMock.mock.calls[1][0].messages;
+    const toolResult = secondMessages[2].content[0];
+    expect(secondMessages[1].role).toBe("assistant");
+    expect(toolResult).toMatchObject({ type: "tool_result", tool_use_id: "t1" });
+    expect(JSON.parse(toolResult.content)).toEqual([{ domain: "bbc.com" }]);
+  });
+
+  it("forwards the tools array on every request", async () => {
+    textReply("no search needed");
+    await createAnthropic(baseConfig).askWithTools("p", {
+      tools: TOOLS,
+      onTool: vi.fn(),
+      maxSteps: 4,
+    });
+    expect(lastRequest().tools).toEqual(TOOLS);
+  });
+
+  it("stops at maxSteps even if the model keeps requesting tools", async () => {
+    // The model never yields — every turn asks for another search.
+    createMock.mockResolvedValue({
+      content: [{ type: "tool_use", id: "t", name: "search_evidence", input: { query: "again" } }],
+      stop_reason: "tool_use",
+    });
+    const onTool = vi.fn().mockResolvedValue([]);
+
+    const result = await createAnthropic(baseConfig).askWithTools("p", {
+      tools: TOOLS,
+      onTool,
+      maxSteps: 3,
+    });
+
+    expect(createMock).toHaveBeenCalledTimes(3);
+    expect(onTool).toHaveBeenCalledTimes(3);
+    expect(result.steps).toBe(3);
   });
 });

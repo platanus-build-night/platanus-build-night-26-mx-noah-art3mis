@@ -1,6 +1,13 @@
 "use client";
 
-import { MODELS, DEFAULT_MODEL, type ModelId } from "@/lib/run-config";
+import {
+  MODELS,
+  DEFAULT_MODEL,
+  DEFAULT_CLAIMS,
+  MIN_CLAIMS,
+  MAX_CLAIMS,
+  type ModelId,
+} from "@/lib/run-config";
 
 // The user-facing run settings. Mirrors RunConfig but keeps the two API keys as plain
 // strings (always-controlled inputs); the empty string means "use the server default".
@@ -8,6 +15,7 @@ export interface Settings {
   model: ModelId;
   temperature: number;
   thinking: boolean;
+  maxClaims: number;
   anthropicKey: string;
   exaKey: string;
 }
@@ -16,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   model: DEFAULT_MODEL,
   temperature: 0,
   thinking: false,
+  maxClaims: DEFAULT_CLAIMS,
   anthropicKey: "",
   exaKey: "",
 };
@@ -75,6 +84,28 @@ export function SettingsPanel({
           {settings.thinking
             ? "fixed at 1 while extended thinking is on"
             : "0 = deterministic · 1 = most varied"}
+        </span>
+      </div>
+
+      {/* Claims to extract — the legibility cap the graph grows from */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between">
+          <label className={labelCls}>Claims to extract</label>
+          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+            up to {settings.maxClaims}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={MIN_CLAIMS}
+          max={MAX_CLAIMS}
+          step={1}
+          value={settings.maxClaims}
+          onChange={(e) => set("maxClaims", Number(e.target.value))}
+          className="w-full accent-[var(--accent)]"
+        />
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          legibility cap · more claims = denser graph, slower run
         </span>
       </div>
 

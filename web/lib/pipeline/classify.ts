@@ -29,6 +29,18 @@ interface Classification {
   stanceConfidence: number;
 }
 
+// Privileged trusted sources whose reliability is NOT left to the model. A match is
+// forced to "high" so it can move a verdict (per the source-reliability-is-load-bearing
+// principle in verdict.ts). Wikipedia is tertiary — privileged for established facts; it
+// simply won't carry breaking events, which is fine.
+const PRIVILEGED_HIGH_DOMAINS = ["wikipedia.org"];
+
+function privilegedReliability(domain: string, modelReliability: Reliability): Reliability {
+  return PRIVILEGED_HIGH_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))
+    ? "high"
+    : modelReliability;
+}
+
 export async function classifyEvidence(
   claim: ClaimItem,
   question: QuestionItem,
@@ -66,7 +78,7 @@ export async function classifyEvidence(
       publishedDate: r.publishedDate,
       passage: r.passage,
       stance: c.stance,
-      reliability: c.reliability,
+      reliability: privilegedReliability(r.domain, c.reliability),
       sourceType: c.sourceType,
       stanceConfidence: c.stanceConfidence,
     };

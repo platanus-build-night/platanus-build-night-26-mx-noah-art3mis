@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AnthropicCaller } from "../anthropic";
 
 const askJSON = vi.fn();
-const ask: AnthropicCaller = { askJSON, askText: vi.fn() };
+const ask: AnthropicCaller = { askJSON, askText: vi.fn(), askWithTools: vi.fn() };
 
 import { generateQuestions } from "./questions";
 import type { ClaimItem } from "../graph-types";
@@ -16,6 +16,12 @@ beforeEach(() => askJSON.mockReset());
 describe("generateQuestions", () => {
   it("returns no questions for an unckeckable claim and skips the model call entirely", async () => {
     const out = await generateQuestions(claim({ checkable: false }), ask);
+    expect(out).toEqual([]);
+    expect(askJSON).not.toHaveBeenCalled();
+  });
+
+  it("returns no questions for a non-checkworthy (opinion) claim and skips the model call", async () => {
+    const out = await generateQuestions(claim({ checkworthy: false }), ask);
     expect(out).toEqual([]);
     expect(askJSON).not.toHaveBeenCalled();
   });
