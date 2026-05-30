@@ -6,6 +6,10 @@ import { MOCK_GRAPH } from "@/lib/mock-graph";
 import type { FactGraph } from "@/lib/graph-types";
 import type { PipelineEvent } from "@/lib/pipeline/events";
 import { applyEvent, emptyGraph } from "@/lib/apply-event";
+import { DEMO_CACHE } from "@/lib/demo-cache";
+import { graphToEvents } from "@/lib/replay";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Curated demo posts (real viral misinformation, text-native) — see demo-corpus/SOURCES.md.
 // The El Mencho story is the de-novo hero; the others give textured mixed-verdict graphs.
@@ -32,6 +36,7 @@ export default function Workbench() {
   const [graph, setGraph] = useState<FactGraph>(MOCK_GRAPH);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cached, setCached] = useState(false);
   const [runId, setRunId] = useState(0);
 
   async function check(source: string) {
@@ -39,6 +44,7 @@ export default function Workbench() {
     if (!trimmed || loading) return;
     setLoading(true);
     setError(null);
+    setCached(false);
     // Reset to an empty graph for this source; the stream builds it node by node.
     setGraph(emptyGraph(trimmed));
     setRunId((n) => n + 1);
@@ -71,7 +77,21 @@ export default function Workbench() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      // Wifi-death fallback: if this exact source has a cached run, replay it as a
+      // simulated stream so the demo still works offline (PLAN.md top risk).
+      const fallback = DEMO_CACHE[trimmed];
+      if (fallback) {
+        setCached(true);
+        setGraph(emptyGraph(trimmed));
+        for (const { event, delay } of graphToEvents(fallback)) {
+          await sleep(delay);
+          if (event.type !== "error" && event.type !== "done") {
+            setGraph((g) => applyEvent(g, event));
+          }
+        }
+      } else {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      }
     } finally {
       setLoading(false);
     }
@@ -155,6 +175,20 @@ export default function Workbench() {
 
       <main className="relative flex-1">
         <FactGraphCanvas key={runId} graph={graph} />
+        {cached && (
+          <div className="pointer-events-none absolute right-4 top-4 z-10">
+            <span
+              className="rounded-full border px-3 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em]"
+              style={{
+                borderColor: "var(--line-2)",
+                background: "rgba(11,14,21,0.9)",
+                color: "var(--ink-3)",
+              }}
+            >
+              ↺ cached replay · offline
+            </span>
+          </div>
+        )}
         {loading && (
           <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2">
             <div
