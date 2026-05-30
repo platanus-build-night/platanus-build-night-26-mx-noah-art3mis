@@ -22,6 +22,25 @@ export default function Home() {
           </span>
         </div>
         <div className="flex items-center gap-4">
+          <a
+            href="https://veritrace-chi.vercel.app/"
+            className="hidden items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] transition-colors md:flex"
+            style={{
+              borderColor: "rgba(58,214,230,0.4)",
+              background: "rgba(58,214,230,0.08)",
+              color: "var(--accent)",
+            }}
+          >
+            veritrace-chi.vercel.app
+          </a>
+          <a
+            href="https://simulacro.tech"
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:text-[var(--accent)]"
+          >
+            by simulacro.tech
+          </a>
           <Link
             href="/methodology"
             className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:text-[var(--accent)]"
