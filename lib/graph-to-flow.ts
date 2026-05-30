@@ -266,5 +266,16 @@ export function computeLayout(nodes: AppNode[], edges: Edge[]): Map<string, Node
 /** Apply a computed position to a node, returning a new node object (or the input if unplaced). */
 export function positionNode(n: AppNode, pos?: NodePosition): AppNode {
   if (!pos) return n;
-  return { ...n, position: { x: pos.x, y: pos.y }, width: pos.width, style: { width: pos.width } };
+  // initialWidth/initialHeight are dimension fallbacks the MiniMap reads when a node hasn't
+  // been DOM-measured — which, with onlyRenderVisibleElements, is every off-screen node. Without
+  // a known height the MiniMap's nodeHasDimensions() check drops the node and the map renders
+  // empty. measured dims still override these once a node is on screen, so they're hints only.
+  return {
+    ...n,
+    position: { x: pos.x, y: pos.y },
+    width: pos.width,
+    initialWidth: pos.width,
+    initialHeight: SIZES[n.type].h,
+    style: { width: pos.width },
+  };
 }

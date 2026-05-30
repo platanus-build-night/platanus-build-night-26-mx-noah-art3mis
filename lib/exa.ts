@@ -1,5 +1,9 @@
 import Exa from "exa-js";
-import { DEFAULT_SOURCES } from "./run-config";
+import { DEFAULT_SOURCES, DEFAULT_CHARS, type ExaCategory } from "./run-config";
+
+// The short, query-focused excerpt shown on each evidence card. Kept small for legibility —
+// separate from `maxChars`, which governs how much full text the *classifier* reads.
+const HIGHLIGHT_CHARS = 512;
 
 // Fact-check outlets are EXCLUDED from every retrieval. This is the mechanical
 // enforcement of VERITRACE's de-novo honesty bar: the pipeline must reach its own
@@ -26,14 +30,34 @@ export interface RawEvidence {
   domain: string;
   faviconUrl?: string;
   publishedDate?: string;
-  /** Query-relevant excerpt (Exa highlight) → the Evidence passage; falls back to text. */
+  /** Short query-relevant excerpt (Exa highlight) — shown on the card. Falls back to text. */
   passage: string;
+  /** Fuller extracted page text (up to maxChars) — what the classifier actually reads. */
+  text: string;
 }
 
-/** Optional retrieval bounds. The date window keeps stale and post-event sources out. */
+/** Optional per-search bounds. The date window keeps stale and post-event sources out. */
 export interface SearchOptions {
   startPublishedDate?: string; // ISO; exclude sources published before this
   endPublishedDate?: string; // ISO; exclude sources published after this
+  /** Focus the highlight on this text (the question being resolved), not the keyword query. */
+  highlightQuery?: string;
+}
+
+/** Per-run retrieval configuration baked into the search closure. */
+export interface ExaSearchConfig {
+  /** User-supplied key; blank ⇒ the server's EXA_API_KEY env. */
+  exaKey?: string;
+  /** Sources per search (Exa numResults). */
+  numResults?: number;
+  /** Chars of full page text read per source (Exa contents.text.maxCharacters). */
+  maxChars?: number;
+  /** Exa's agentic "deep" search instead of "auto". */
+  deepSearch?: boolean;
+  /** Restrict to an Exa content category for cleaner extraction; "" = no restriction. */
+  category?: ExaCategory | "";
+  /** Prefer freshly-crawled content over Exa's cache (fresher, slower). */
+  preferFresh?: boolean;
 }
 
 /**
@@ -41,14 +65,23 @@ export interface SearchOptions {
  * The returned function does one search per Question node. Direct call — not Claude
  * function-calling — because our pipeline is deterministic: we decide when to search.
  * `excludeDomains` enforces de-novo retrieval. `type: "auto"` is the balanced ~1s default;
- * numResults (the per-run source cap) bounds the graph for legibility. We omit `maxAgeHours`
- * so cache is served (livecrawl as fallback), which is what makes rehearsed demo chips return
- * fast on stage.
+ * `deepSearch` swaps in Exa's agentic `"deep"` type (higher recall, slower, pricier) for hard
+ * claims. `numResults` bounds the graph for legibility; `maxChars` caps how much page text the
+ * classifier reads; `category` optionally restricts to a content type (cleaner extraction); and
+ * `preferFresh` opts into live crawling. By default we omit livecrawl so cache is served, which
+ * is what makes rehearsed demo chips return fast on stage.
  */
 export function createExaSearch(
-  exaKey?: string,
-  numResults: number = DEFAULT_SOURCES,
+  cfg: ExaSearchConfig = {},
 ): (query: string, opts?: SearchOptions) => Promise<RawEvidence[]> {
+  const {
+    exaKey,
+    numResults = DEFAULT_SOURCES,
+    maxChars = DEFAULT_CHARS,
+    deepSearch = false,
+    category = "",
+    preferFresh = false,
+  } = cfg;
   const apiKey = exaKey || process.env.EXA_API_KEY;
   if (!apiKey) throw new Error("EXA_API_KEY is not set (and no key was provided)");
   const client = new Exa(apiKey);
@@ -57,26 +90,35 @@ export function createExaSearch(
     query: string,
     opts: SearchOptions = {},
   ): Promise<RawEvidence[]> {
-    const { results } = await client.search(query, {
-      type: "auto",
+    // De-novo exclusion turned OFF for now: fact-check outlets (FACT_CHECKERS) are
+    // currently allowed back into retrieval so the pipeline can reach primary sources
+    // even when they only surface via a fact-check's citations. Re-add
+    // `excludeDomains: FACT_CHECKERS` here to restore the strict de-novo honesty bar.
+    // A claim-date window (when known) keeps stale pre-event matches and far-future
+    // re-litigation out, while still admitting the day-of/after primary reporting.
+    const base = {
       numResults,
-      // De-novo exclusion turned OFF for now: fact-check outlets (FACT_CHECKERS) are
-      // currently allowed back into retrieval so the pipeline can reach primary sources
-      // even when they only surface via a fact-check's citations. Re-add
-      // `excludeDomains: FACT_CHECKERS` here to restore the strict de-novo honesty bar.
-      // A claim-date window (when known) keeps stale pre-event matches and far-future
-      // re-litigation out, while still admitting the day-of/after primary reporting.
       ...(opts.startPublishedDate ? { startPublishedDate: opts.startPublishedDate } : {}),
       ...(opts.endPublishedDate ? { endPublishedDate: opts.endPublishedDate } : {}),
-      contents: {
-        highlights: true,
-        text: { maxCharacters: 800 },
-      },
-    });
+      ...(category ? { category } : {}),
+    };
+    // Highlights are query-focused (on the question being resolved) and stay short for the
+    // card; `text` is the fuller body the classifier reads. `livecrawl: "preferred"` opts into
+    // fresh content. Each branch inlines `contents` so the SDK can infer the result shape.
+    const contents = {
+      highlights: { query: opts.highlightQuery, maxCharacters: HIGHLIGHT_CHARS },
+      text: { maxCharacters: maxChars },
+      ...(preferFresh ? { livecrawl: "preferred" as const } : {}),
+    };
+    const { results } = deepSearch
+      ? await client.search(query, { type: "deep", ...base, contents })
+      : await client.search(query, { type: "auto", ...base, contents });
 
     return results.map((r) => {
       const highlight = Array.isArray(r.highlights) ? r.highlights[0] : undefined;
-      const passage = (highlight || r.text || "").trim();
+      const text = typeof r.text === "string" ? r.text : undefined;
+      // Card passage prefers the short highlight; the classifier's `text` prefers the full body.
+      const passage = (highlight || text || "").trim();
       return {
         title: r.title ?? r.url,
         url: r.url,
@@ -84,6 +126,7 @@ export function createExaSearch(
         faviconUrl: r.favicon || faviconFor(r.url),
         publishedDate: r.publishedDate?.slice(0, 10),
         passage,
+        text: (text || highlight || "").trim(),
       };
     });
   };

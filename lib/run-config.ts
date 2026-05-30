@@ -50,6 +50,20 @@ export const MIN_SOURCES = 1;
 export const MAX_SOURCES = 10;
 export const DEFAULT_SOURCES = 2;
 
+// How much of each source's text we pull back (Exa contents.text.maxCharacters) and feed to
+// the stance classifier. Exa bills content per page, not per character, so reading deeper is
+// free on Exa's side — but it does grow the classify prompt (more Anthropic input tokens per
+// run), so the ceiling is about classifier prompt size and latency, not Exa cost. Default is
+// high on purpose: we'd rather the classifier read most of each document than a snippet.
+export const MIN_CHARS = 200;
+export const MAX_CHARS = 10000;
+export const DEFAULT_CHARS = 6000;
+
+// Exa content categories we expose as an optional retrieval filter ("" = no restriction).
+// `news` yields cleaner extraction for most misinformation claims; the others are niche.
+export const EXA_CATEGORIES = ["news", "research paper", "pdf"] as const;
+export type ExaCategory = (typeof EXA_CATEGORIES)[number];
+
 export interface RunConfig {
   model: ModelId;
   /** 0..1. Lower = more deterministic. Ignored (forced to 1) when thinking is on. */
@@ -61,6 +75,14 @@ export interface RunConfig {
   maxQuestions: number;
   /** Sources retrieved per search (MIN_SOURCES..MAX_SOURCES) — Exa numResults, a legibility cap. */
   maxSources: number;
+  /** Chars of each source's text pulled back (MIN_CHARS..MAX_CHARS) — Exa contents.text.maxCharacters. */
+  maxChars: number;
+  /** Use Exa's agentic "deep" search (higher recall, slower, pricier) instead of standard "auto". */
+  deepSearch: boolean;
+  /** Restrict retrieval to an Exa content category for cleaner extraction; "" = no restriction. */
+  category: ExaCategory | "";
+  /** Prefer freshly-crawled content over Exa's cache — fresher for breaking news, but slower. */
+  preferFresh: boolean;
   /** User-supplied key; blank ⇒ the server falls back to its ANTHROPIC_API_KEY env. */
   anthropicKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
@@ -76,6 +98,10 @@ export const DEFAULT_CONFIG: RunConfig = {
   maxClaims: DEFAULT_CLAIMS,
   maxQuestions: DEFAULT_QUESTIONS,
   maxSources: DEFAULT_SOURCES,
+  maxChars: DEFAULT_CHARS,
+  deepSearch: false,
+  category: "",
+  preferFresh: false,
 };
 
 function isModelId(value: unknown): value is ModelId {
@@ -143,6 +169,23 @@ export function parseConfig(input: unknown): RunConfig {
     maxSources = s;
   }
 
+  let maxChars = DEFAULT_CONFIG.maxChars;
+  if (raw.maxChars !== undefined) {
+    const c = raw.maxChars;
+    if (typeof c !== "number" || !Number.isInteger(c) || c < MIN_CHARS || c > MAX_CHARS) {
+      throw new Error(`maxChars must be an integer between ${MIN_CHARS} and ${MAX_CHARS}`);
+    }
+    maxChars = c;
+  }
+
+  let category: ExaCategory | "" = DEFAULT_CONFIG.category;
+  if (raw.category !== undefined && raw.category !== "") {
+    if (!EXA_CATEGORIES.includes(raw.category as ExaCategory)) {
+      throw new Error(`category must be one of: ${EXA_CATEGORIES.join(", ")}`);
+    }
+    category = raw.category as ExaCategory;
+  }
+
   return {
     model,
     temperature,
@@ -150,6 +193,10 @@ export function parseConfig(input: unknown): RunConfig {
     maxClaims,
     maxQuestions,
     maxSources,
+    maxChars,
+    deepSearch: Boolean(raw.deepSearch),
+    category,
+    preferFresh: Boolean(raw.preferFresh),
     anthropicKey: cleanKey(raw.anthropicKey),
     exaKey: cleanKey(raw.exaKey),
   };

@@ -91,7 +91,9 @@ export async function resolveQuestion(
     if (name !== "search_evidence") return { error: `unknown tool: ${name}` };
     const query = (input as { query?: string }).query ?? "";
     searchQueries.push(query); // record the actual executed queries for the trace
-    const results = await deps.search(query, window);
+    // Focus each source's highlight on the question being resolved, not the model's keyword
+    // query — the highlight is the card excerpt, so this keeps it on-point.
+    const results = await deps.search(query, { ...window, highlightQuery: question.text });
     for (const r of results) collected.set(r.url, r); // dedup by url across queries
     return results;
   }

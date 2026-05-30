@@ -57,6 +57,9 @@ export default function Workbench() {
   const [runId, setRunId] = useState(0);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
+  // Mobile-only: collapse the input zone (textarea + specimens + settings) so the evidence
+  // graph gets the full small screen. Inert on desktop (md+), where the zone always shows.
+  const [inputOpen, setInputOpen] = useState(true);
   // Post-run brief: the left slide-in panel with verdict + ratio + AI summary. The narrative
   // is fetched once per finished run (tracked by summarizedRunIdRef so the effect fires once).
   const [reportOpen, setReportOpen] = useState(false);
@@ -87,6 +90,10 @@ export default function Workbench() {
       maxClaims: settings.maxClaims,
       maxQuestions: settings.maxQuestions,
       maxSources: settings.maxSources,
+      maxChars: settings.maxChars,
+      deepSearch: settings.deepSearch,
+      category: settings.category,
+      preferFresh: settings.preferFresh,
       anthropicKey: settings.anthropicKey || undefined,
       exaKey: settings.exaKey || undefined,
     };
@@ -231,19 +238,28 @@ export default function Workbench() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="vt-reveal border-b border-[var(--line)] bg-[var(--bg-2)]/60 px-6 py-3.5">
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <label className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)]">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setInputOpen((o) => !o)}
+              aria-expanded={inputOpen}
+              aria-label={inputOpen ? "Collapse input" : "Expand input"}
+              className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)] md:cursor-default"
+            >
+              <span className="md:hidden text-[var(--ink-2)]">{inputOpen ? "▾" : "▸"}</span>
               ▣ Paste source text · the artifact under examination
-            </label>
+            </button>
             <button
               type="button"
               onClick={() => setShowSettings((s) => !s)}
               aria-expanded={showSettings}
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
             >
-              ⚙ {MODELS[settings.model]} · temp {!supportsTemperature(settings.model) ? "n/a" : settings.thinking ? "1·think" : settings.temperature.toFixed(2)} · ≤{settings.maxClaims} claims · ≤{settings.maxQuestions} q · ≤{settings.maxSources} src
+              ⚙ {MODELS[settings.model]} · temp {!supportsTemperature(settings.model) ? "n/a" : settings.thinking ? "1·think" : settings.temperature.toFixed(2)} · ≤{settings.maxClaims} claims · ≤{settings.maxQuestions} q · ≤{settings.maxSources} src · {(settings.maxChars / 1000).toFixed(settings.maxChars % 1000 === 0 ? 0 : 1)}k chars{settings.deepSearch ? " · deep" : ""}{settings.category ? ` · ${settings.category}` : ""}{settings.preferFresh ? " · fresh" : ""}
             </button>
           </div>
+          {/* Collapsible body: hidden on mobile when retracted, always shown from md up. */}
+          <div className={inputOpen ? "flex flex-col gap-3" : "hidden md:flex md:flex-col md:gap-3"}>
           {showSettings && (
             <SettingsPanel settings={settings} onChange={setSettings} />
           )}
@@ -326,11 +342,12 @@ export default function Workbench() {
               ⚠ {error}
             </p>
           )}
+          </div>
         </div>
       </div>
 
       <main className="relative flex-1">
-        <FactGraphCanvas key={runId} graph={graph} showInternals={settings.showInternals} />
+        <FactGraphCanvas key={runId} graph={graph} showInternals={settings.showInternals} showMinimap={settings.showMinimap} />
         <RunReport
           graph={graph}
           open={reportOpen}

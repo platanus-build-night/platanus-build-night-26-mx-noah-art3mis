@@ -12,8 +12,13 @@ import {
   DEFAULT_SOURCES,
   MIN_SOURCES,
   MAX_SOURCES,
+  DEFAULT_CHARS,
+  MIN_CHARS,
+  MAX_CHARS,
+  EXA_CATEGORIES,
   supportsTemperature,
   type ModelId,
+  type ExaCategory,
 } from "@/lib/run-config";
 
 // The user-facing run settings. Mirrors RunConfig but keeps the two API keys as plain
@@ -25,10 +30,20 @@ export interface Settings {
   maxClaims: number;
   maxQuestions: number;
   maxSources: number;
+  /** Chars of each source's text read per evidence card (Exa contents.text.maxCharacters). */
+  maxChars: number;
+  /** Use Exa's agentic "deep" search — higher recall on hard claims, slower and pricier. */
+  deepSearch: boolean;
+  /** Restrict retrieval to an Exa content category for cleaner extraction; "" = no restriction. */
+  category: ExaCategory | "";
+  /** Prefer freshly-crawled content over Exa's cache — fresher for breaking news, but slower. */
+  preferFresh: boolean;
   anthropicKey: string;
   exaKey: string;
   /** Display-only: reveal the pipeline's hidden retrieval internals in the graph. */
   showInternals: boolean;
+  /** Display-only: show the graph's minimap (the navigator thumbnail). */
+  showMinimap: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,9 +53,14 @@ export const DEFAULT_SETTINGS: Settings = {
   maxClaims: DEFAULT_CLAIMS,
   maxQuestions: DEFAULT_QUESTIONS,
   maxSources: DEFAULT_SOURCES,
+  maxChars: DEFAULT_CHARS,
+  deepSearch: false,
+  category: "",
+  preferFresh: false,
   anthropicKey: "",
   exaKey: "",
   showInternals: false,
+  showMinimap: true,
 };
 
 const labelCls =
@@ -65,7 +85,7 @@ export function SettingsPanel({
   const tempInert = settings.thinking || modelDeprecatesTemp;
 
   return (
-    <div className="grid gap-4 rounded-lg border border-[var(--line-2)] bg-[var(--bg)]/60 p-4 sm:grid-cols-3">
+    <div className="grid gap-4 rounded-lg border border-[var(--line-2)] bg-[var(--bg)]/60 p-4 sm:grid-cols-2 lg:grid-cols-4">
       {/* Model */}
       <div className="flex flex-col gap-1.5">
         <label className={labelCls}>Model</label>
@@ -179,6 +199,90 @@ export function SettingsPanel({
         </span>
       </div>
 
+      {/* Read depth — how much of each source's text the classifier sees (Exa text chars) */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between">
+          <label className={labelCls}>Read depth</label>
+          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+            {settings.maxChars.toLocaleString()} chars
+          </span>
+        </div>
+        <input
+          type="range"
+          min={MIN_CHARS}
+          max={MAX_CHARS}
+          step={200}
+          value={settings.maxChars}
+          onChange={(e) => set("maxChars", Number(e.target.value))}
+          className="w-full accent-[var(--accent)]"
+        />
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          chars of each source read · billed per page, so deeper is ~free
+        </span>
+      </div>
+
+      {/* Deep search — Exa's agentic retrieval; opt-in for hard / low-coverage claims */}
+      <div className="flex flex-col gap-1.5">
+        <label className={labelCls}>Deep search</label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.deepSearch}
+          onClick={() => set("deepSearch", !settings.deepSearch)}
+          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full transition-colors"
+            style={{ background: settings.deepSearch ? "var(--accent)" : "var(--line-2)" }}
+          />
+          {settings.deepSearch ? "On" : "Off"}
+        </button>
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          agentic multi-step retrieval · higher recall, slower, pricier
+        </span>
+      </div>
+
+      {/* Source category — optional Exa content filter; cleaner extraction, narrower recall */}
+      <div className="flex flex-col gap-1.5">
+        <label className={labelCls}>Source category</label>
+        <select
+          value={settings.category}
+          onChange={(e) => set("category", e.target.value as ExaCategory | "")}
+          className={fieldCls}
+        >
+          <option value="">Any source</option>
+          {EXA_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c[0].toUpperCase() + c.slice(1)}
+            </option>
+          ))}
+        </select>
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          restrict retrieval · cleaner extraction, but narrows recall
+        </span>
+      </div>
+
+      {/* Content freshness — opt into live crawling instead of Exa's cache */}
+      <div className="flex flex-col gap-1.5">
+        <label className={labelCls}>Prefer fresh content</label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.preferFresh}
+          onClick={() => set("preferFresh", !settings.preferFresh)}
+          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full transition-colors"
+            style={{ background: settings.preferFresh ? "var(--accent)" : "var(--line-2)" }}
+          />
+          {settings.preferFresh ? "Live crawl" : "Cached"}
+        </button>
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          live-crawl over cache · fresher for breaking news, but slower
+        </span>
+      </div>
+
       {/* Extended thinking */}
       <div className="flex flex-col gap-1.5">
         <label className={labelCls}>Extended thinking</label>
@@ -218,8 +322,29 @@ export function SettingsPanel({
         </span>
       </div>
 
+      {/* Minimap — display-only; the navigator thumbnail in the graph corner */}
+      <div className="flex flex-col gap-1.5">
+        <label className={labelCls}>Minimap</label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.showMinimap}
+          onClick={() => set("showMinimap", !settings.showMinimap)}
+          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full transition-colors"
+            style={{ background: settings.showMinimap ? "var(--accent)" : "var(--line-2)" }}
+          />
+          {settings.showMinimap ? "On" : "Off"}
+        </button>
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          navigator thumbnail in the graph corner
+        </span>
+      </div>
+
       {/* API keys */}
-      <div className="flex flex-col gap-1.5 sm:col-span-3">
+      <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-4">
         <label className={labelCls}>Your API keys · optional, stored in this browser</label>
         <div className="grid gap-2 sm:grid-cols-2">
           <input

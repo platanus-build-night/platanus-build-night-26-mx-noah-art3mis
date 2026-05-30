@@ -163,7 +163,7 @@ describe("resolveQuestion (agentic gather loop)", () => {
   const question: QuestionItem = { id: "c1-q1", claimId: "c1", text: "did X happen?", status: "searching" };
 
   function rawSource(domain: string): RawEvidence {
-    return { title: "t", url: `https://${domain}/x`, domain, passage: "p" };
+    return { title: "t", url: `https://${domain}/x`, domain, passage: "p", text: "p" };
   }
 
   // askWithTools is the model: we script which queries it issues via opts.onTool.
@@ -202,13 +202,14 @@ describe("resolveQuestion (agentic gather loop)", () => {
     expect(d.search).toHaveBeenCalledWith("model query 1", {
       startPublishedDate: "2026-01-23",
       endPublishedDate: "2026-03-08",
+      highlightQuery: question.text,
     });
   });
 
-  it("searches with no date window when the claim has no date", async () => {
+  it("searches with no date window but still focuses highlights when the claim has no date", async () => {
     const d = deps();
     await resolveQuestion(claim(), question, d);
-    expect(d.search).toHaveBeenCalledWith("model query 1", undefined);
+    expect(d.search).toHaveBeenCalledWith("model query 1", { highlightQuery: question.text });
   });
 
   it("accumulates and dedupes evidence by url across the model's searches", async () => {

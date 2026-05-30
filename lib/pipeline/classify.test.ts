@@ -19,6 +19,7 @@ function raw(over: Partial<RawEvidence> = {}): RawEvidence {
     faviconUrl: "https://bbc.com/fav.ico",
     publishedDate: "2026-02-22",
     passage: "a passage",
+    text: "a passage",
     ...over,
   };
 }

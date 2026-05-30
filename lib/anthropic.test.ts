@@ -18,7 +18,7 @@ vi.mock("@anthropic-ai/sdk", () => {
 
 import { createAnthropic } from "./anthropic";
 
-const baseConfig: RunConfig = { model: "claude-sonnet-4-6", temperature: 0, thinking: false, maxClaims: 5, maxQuestions: 2, maxSources: 2 };
+const baseConfig: RunConfig = { model: "claude-sonnet-4-6", temperature: 0, thinking: false, maxClaims: 5, maxQuestions: 2, maxSources: 2, maxChars: 6000, deepSearch: false, category: "", preferFresh: false };
 
 beforeEach(() => {
   createMock.mockReset();

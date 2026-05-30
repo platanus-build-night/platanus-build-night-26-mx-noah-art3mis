@@ -56,7 +56,9 @@ export async function classifyEvidence(
   const sources = raw
     .map(
       (r, i) =>
-        `[${i}] domain: ${r.domain}\n    published: ${r.publishedDate ?? "unknown"}\n    title: ${r.title}\n    passage: ${r.passage || "(no excerpt retrieved)"}`,
+        // Feed the fuller `text` (up to the run's read depth), not just the short card excerpt,
+        // so stance is judged on as much of the document as was retrieved.
+        `[${i}] domain: ${r.domain}\n    published: ${r.publishedDate ?? "unknown"}\n    title: ${r.title}\n    content: ${r.text || r.passage || "(no excerpt retrieved)"}`,
     )
     .join("\n\n");
 

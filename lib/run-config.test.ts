@@ -4,6 +4,9 @@ import {
   supportsTemperature,
   DEFAULT_CONFIG,
   DEFAULT_MODEL,
+  DEFAULT_CHARS,
+  MIN_CHARS,
+  MAX_CHARS,
 } from "./run-config";
 
 describe("parseConfig defaults", () => {
@@ -117,6 +120,66 @@ describe("parseConfig maxSources", () => {
 
   it("rejects a non-integer maxSources", () => {
     expect(() => parseConfig({ maxSources: 2.5 })).toThrow(/source/i);
+  });
+});
+
+describe("parseConfig maxChars", () => {
+  it("defaults maxChars to the read-depth default", () => {
+    expect(parseConfig({}).maxChars).toBe(DEFAULT_CHARS);
+  });
+
+  it("accepts an in-range integer maxChars", () => {
+    expect(parseConfig({ maxChars: 4000 }).maxChars).toBe(4000);
+  });
+
+  it("rejects maxChars below the minimum", () => {
+    expect(() => parseConfig({ maxChars: MIN_CHARS - 1 })).toThrow(/char/i);
+  });
+
+  it("rejects maxChars above the maximum", () => {
+    expect(() => parseConfig({ maxChars: MAX_CHARS + 1 })).toThrow(/char/i);
+  });
+
+  it("rejects a non-integer maxChars", () => {
+    expect(() => parseConfig({ maxChars: 2400.5 })).toThrow(/char/i);
+  });
+});
+
+describe("parseConfig deepSearch", () => {
+  it("defaults deepSearch to false", () => {
+    expect(parseConfig({}).deepSearch).toBe(false);
+  });
+
+  it("coerces a truthy deepSearch to true", () => {
+    expect(parseConfig({ deepSearch: true }).deepSearch).toBe(true);
+  });
+});
+
+describe("parseConfig category", () => {
+  it("defaults category to no restriction", () => {
+    expect(parseConfig({}).category).toBe("");
+  });
+
+  it("accepts a known Exa category", () => {
+    expect(parseConfig({ category: "news" }).category).toBe("news");
+  });
+
+  it("treats an empty string as no restriction", () => {
+    expect(parseConfig({ category: "" }).category).toBe("");
+  });
+
+  it("rejects an unknown category", () => {
+    expect(() => parseConfig({ category: "tweets" })).toThrow(/category/i);
+  });
+});
+
+describe("parseConfig preferFresh", () => {
+  it("defaults preferFresh to false", () => {
+    expect(parseConfig({}).preferFresh).toBe(false);
+  });
+
+  it("coerces a truthy preferFresh to true", () => {
+    expect(parseConfig({ preferFresh: 1 }).preferFresh).toBe(true);
   });
 });
 

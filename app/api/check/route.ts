@@ -32,7 +32,14 @@ export async function POST(request: Request) {
     const config = parseConfig(body.config);
     deps = {
       ask: createAnthropic(config),
-      search: createExaSearch(config.exaKey, config.maxSources),
+      search: createExaSearch({
+        exaKey: config.exaKey,
+        numResults: config.maxSources,
+        maxChars: config.maxChars,
+        deepSearch: config.deepSearch,
+        category: config.category,
+        preferFresh: config.preferFresh,
+      }),
       maxClaims: config.maxClaims,
       maxQuestions: config.maxQuestions,
     };

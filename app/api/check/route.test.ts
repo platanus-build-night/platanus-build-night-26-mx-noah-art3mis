@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { PipelineEvent } from "@/lib/pipeline/events";
+import { DEFAULT_CHARS } from "@/lib/run-config";
 
 const { streamPipeline } = vi.hoisted(() => ({ streamPipeline: vi.fn() }));
 const { createAnthropic } = vi.hoisted(() => ({ createAnthropic: vi.fn() }));
@@ -115,9 +116,11 @@ describe("POST /api/check streaming", () => {
     );
   });
 
-  it("forwards a user-supplied Exa key and the source cap to the search factory", async () => {
+  it("forwards a user-supplied Exa key and retrieval config to the search factory", async () => {
     await POST(post(JSON.stringify({ text: "hi", config: { exaKey: "exa-user", maxSources: 4 } })));
-    expect(createExaSearch).toHaveBeenCalledWith("exa-user", 4);
+    expect(createExaSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ exaKey: "exa-user", numResults: 4, maxChars: DEFAULT_CHARS, deepSearch: false, category: "", preferFresh: false }),
+    );
   });
 
   it("converts a mid-stream pipeline failure into a terminal error event, not a crash", async () => {

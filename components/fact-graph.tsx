@@ -40,9 +40,11 @@ function FitOnGrow({ count }: { count: number }) {
 export default function FactGraphCanvas({
   graph,
   showInternals = false,
+  showMinimap = true,
 }: {
   graph: FactGraph;
   showInternals?: boolean;
+  showMinimap?: boolean;
 }) {
   // Cached derive: re-runs dagre only on topology changes and keeps stable node identities so
   // React Flow re-renders just the cards that changed (see useGraphFlow).
@@ -68,7 +70,7 @@ export default function FactGraphCanvas({
           showInteractive={false}
           className="!overflow-hidden !rounded-md !border !border-[var(--line)] !shadow-xl [&_button]:!border-[var(--line)] [&_button]:!bg-[var(--panel-2)] [&_button]:!fill-[var(--ink-2)] [&_button:hover]:!bg-[var(--line)]"
         />
-        {nodes.length <= MINIMAP_MAX_NODES && (
+        {showMinimap && nodes.length <= MINIMAP_MAX_NODES && (
           <MiniMap
             pannable
             zoomable

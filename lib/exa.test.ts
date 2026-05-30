@@ -17,6 +17,7 @@ vi.mock("exa-js", () => {
 });
 
 import { createExaSearch } from "./exa";
+import { DEFAULT_CHARS } from "./run-config";
 
 beforeEach(() => {
   searchMock.mockReset();
@@ -29,6 +30,7 @@ function withResults(results: unknown[]) {
 }
 
 const search = () => createExaSearch();
+// Most result-mapping cases supply both a highlight and text; assert on whichever field matters.
 
 describe("createExaSearch — de-novo retrieval", () => {
   it("does not exclude fact-check outlets — the de-novo bar is turned off for now", async () => {
@@ -43,14 +45,56 @@ describe("createExaSearch — de-novo retrieval", () => {
     await search()("did X happen?");
     const opts = searchMock.mock.calls[0][1];
     expect(opts.numResults).toBe(2);
-    expect(opts.contents.highlights).toBe(true);
-    expect(opts.contents.text.maxCharacters).toBe(800);
+    expect(opts.contents.highlights.maxCharacters).toBeGreaterThan(0);
+    expect(opts.contents.text.maxCharacters).toBe(DEFAULT_CHARS);
   });
 
   it("forwards a per-run source cap to Exa numResults", async () => {
     withResults([]);
-    await createExaSearch("user-key", 4)("did X happen?");
+    await createExaSearch({ exaKey: "user-key", numResults: 4 })("did X happen?");
     expect(searchMock.mock.calls[0][1].numResults).toBe(4);
+  });
+
+  it("forwards a per-run read-depth cap to Exa contents.text.maxCharacters", async () => {
+    withResults([]);
+    await createExaSearch({ exaKey: "user-key", maxChars: 4000 })("did X happen?");
+    expect(searchMock.mock.calls[0][1].contents.text.maxCharacters).toBe(4000);
+  });
+
+  it("focuses highlights on the supplied highlightQuery (the question), not the keyword query", async () => {
+    withResults([]);
+    await search()("keyword query", { highlightQuery: "did the airport get seized?" });
+    expect(searchMock.mock.calls[0][1].contents.highlights.query).toBe("did the airport get seized?");
+  });
+
+  it("uses the standard 'auto' search type by default and no category/livecrawl", async () => {
+    withResults([]);
+    await search()("did X happen?");
+    const opts = searchMock.mock.calls[0][1];
+    expect(opts.type).toBe("auto");
+    expect(opts).not.toHaveProperty("category");
+    expect(opts.contents).not.toHaveProperty("livecrawl");
+  });
+
+  it("switches to Exa 'deep' search when the deep flag is set", async () => {
+    withResults([]);
+    await createExaSearch({ exaKey: "user-key", deepSearch: true })("did X happen?");
+    const opts = searchMock.mock.calls[0][1];
+    expect(opts.type).toBe("deep");
+    // Deep search must still return contents so the passage/highlight pipeline works.
+    expect(opts.contents.text.maxCharacters).toBe(DEFAULT_CHARS);
+  });
+
+  it("restricts to an Exa category when one is configured", async () => {
+    withResults([]);
+    await createExaSearch({ exaKey: "user-key", category: "news" })("did X happen?");
+    expect(searchMock.mock.calls[0][1].category).toBe("news");
+  });
+
+  it("opts into live crawling when preferFresh is set", async () => {
+    withResults([]);
+    await createExaSearch({ exaKey: "user-key", preferFresh: true })("did X happen?");
+    expect(searchMock.mock.calls[0][1].contents.livecrawl).toBe("preferred");
   });
 
   it("passes the question text through as the query", async () => {
@@ -86,12 +130,22 @@ describe("createExaSearch — result mapping", () => {
     expect(ev.domain).toBe("bbc.co.uk");
   });
 
-  it("prefers the first highlight as the passage", async () => {
+  it("prefers the first highlight as the card passage", async () => {
     withResults([
       { url: "https://x.com", title: "T", highlights: ["the highlight"], text: "the full text" },
     ]);
     const [ev] = await search()("q");
     expect(ev.passage).toBe("the highlight");
+  });
+
+  it("exposes the fuller text separately for the classifier even when a highlight exists", async () => {
+    withResults([
+      { url: "https://x.com", title: "T", highlights: ["the highlight"], text: "the full text" },
+    ]);
+    const [ev] = await search()("q");
+    // The card shows the short highlight; the classifier reads the full body.
+    expect(ev.passage).toBe("the highlight");
+    expect(ev.text).toBe("the full text");
   });
 
   it("falls back to text when no highlight is present", async () => {
@@ -136,7 +190,7 @@ describe("createExaSearch — result mapping", () => {
 describe("createExaSearch — API key resolution", () => {
   it("prefers the user-supplied key over the env key", async () => {
     withResults([]);
-    await createExaSearch("user-key")("q");
+    await createExaSearch({ exaKey: "user-key" })("q");
     expect(ctorMock).toHaveBeenCalledWith("user-key");
   });
 
